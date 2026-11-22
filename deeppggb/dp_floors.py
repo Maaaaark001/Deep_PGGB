@@ -13,7 +13,9 @@ def center(s, n):
     return s[st:st + n]
 
 x = center(Q._tone(1000.0, DST, SEC)[:, 0], DST)
-print("spur   (analytic 88.2k) %8.1f @ %8.0f" % Q._worst_spur(x, DST, 1000.0))
+# 杂散地板必须与 measure_engine 同口径（_tone_residual，−307.1），不是 _worst_spur（−323.4）。
+print("spur   (analytic 88.2k) %8.1f" % Q._tone_residual(x, DST, [1000.0])[0])
+print("       single-bin ref      %8.1f @ %8.0f" % Q._worst_spur(x, DST, 1000.0))
 ref = Q._line_level(x, DST, 1000.0)
 print("image  @43.1k            %8.1f" %
       (20*np.log10(max(Q._line_level(x, DST, 43100.0), Q.EPS)/ref)))

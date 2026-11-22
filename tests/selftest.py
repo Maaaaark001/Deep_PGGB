@@ -259,6 +259,30 @@ def test_plot(demo: Path) -> str:
     return f"{len(opts)} 个图表 option 可序列化"
 
 
+# 灵敏度地板自检（P2）：地板由激励相位精度决定，与引擎/编译器无关，可以钉死。
+# 这道防线专门拦住"地板口径漂移"——一旦有人把 dp_floors.py 的杂散行改回 _worst_spur
+# （−323.4），或改动了 _tone_residual 的排除宽度，这里会立刻失败，而不是无声地
+# 把"贴地板"的判定整体右移 16 dB。允许 ±2 dB 余量，容 float64 舍入的微小波动。
+def test_floors() -> str:
+    from srctool import quality as Q
+    dst, sec = 88200, 4.0
+    n = int(round(dst * sec))
+
+    def center(s):
+        st = (s.shape[0] - n) // 2
+        return s[st:st + n]
+
+    spur_resid = Q._tone_residual(center(Q._tone(1000.0, dst, sec)[:, 0]), dst, [1000.0])[0]
+    spur_bin = Q._worst_spur(center(Q._tone(1000.0, dst, sec)[:, 0]), dst, 1000.0)[0]
+    xm, mtf = Q._multitone(dst, sec)
+    multi = Q._tone_residual(center(xm[:, 0]), dst, mtf)[0]
+    # 三个解析地板（见 AGENTS.md §2 D6 地板行）
+    assert abs(spur_resid - (-307.1)) < 2.0, f"杂散 residual 地板漂移: {spur_resid:.1f}"
+    assert abs(spur_bin - (-323.4)) < 2.0, f"杂散单 bin 地板漂移: {spur_bin:.1f}"
+    assert abs(multi - (-295.2)) < 2.0, f"多音地板漂移: {multi:.1f}"
+    return f"spur_resid={spur_resid:.1f} spur_bin={spur_bin:.1f} multi={multi:.1f}"
+
+
 def test_presets() -> str:
     for p in presets.PRESETS:
         assert p.engine in engines.ENGINES, (p.key, p.engine)
@@ -299,6 +323,9 @@ def main() -> int:
 
     section("7. 绘图数据")
     check("ECharts option 可序列化", lambda: test_plot(demo))
+
+    section("7b. 测量地板")
+    check("解析地板可复现（杂散/多音口径钉死）", test_floors)
 
     section("8. 预设与百科")
     check("预设引用的引擎/格式/参数都存在", test_presets)

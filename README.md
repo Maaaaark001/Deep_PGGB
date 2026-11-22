@@ -126,6 +126,25 @@ python app.py --reload            # 开发模式
 > 也没有降采样路径，所以它在基准页按 44.1→88.2（×2）口径测量、混叠项显示 `n/a`，
 > 并且不出现在转换台的引擎下拉里。
 
+### 原生流式 API（Deep_PGGB）
+
+FIFO、游标与窗口拼接现在在 C++ 引擎内，Python 只负责按块喂入：
+
+```python
+from deeppggb.deeppggb_stream import NativeStreamResampler
+
+rs = NativeStreamResampler(44100, 88200, 2, core_sec=1.0)  # 时延 1.8 s
+y = rs.push(x_chunk)     # (frames, 2)，返回已就绪的核心输出
+tail = rs.flush()        # 流结束，内核在尾部做 20 ms 渐变
+rs.close()
+```
+
+同一窗口几何下，60 s 立体声 44.1→88.2 的吞吐从 Python 外挂补丁的
+9.6/13.5/18.4×（core 0.5/1.0/2.0 s）提高到 **33.9/54.2/74.8×**；原因是每窗口不再启动
+`dpggb.exe`、不再写临时文件，且线程局部的 FFT plan 能跨窗口复用。原生输出与 Python
+`StreamResampler` 逐位相同（4 s 多音测试），与离线整文件在 200 ms 后的内部零差为 122 dB。
+非 Windows 或 DLL 缺失时仍可用纯 Python 的 `StreamResampler` 回退。
+
 每台引擎的参数都在界面上逐条可调，包括 r8brain 的精度档/过渡带/阻带/相位、
 sox_ng 的预设/陡峭度/通带/阻带抑制/相位百分比、
 SSRC 的 profile/dither、libsoxr 的精度/相位、swr 的滤波器尺寸/相位/抖动、
@@ -267,7 +286,7 @@ python tests/selftest.py
 
 | 排除项 | 原因 | 如何获得 |
 |---|---|---|
-| `*.exe` / `*.dll` / `deeppggb/third_party/` | FFTW 与自研二进制约 14 MB，可重建 | 见 `deeppggb/` 的编译命令（AGENTS.md §6） |
+| `*.exe` / `*.dll` / `deeppggb/third_party/` | FFTW 与自研二进制约 14 MB，可重建 | `bash deeppggb/build.sh`（需 MSYS2 UCRT64） |
 | `*.univer` / `work/paper/*.pdf` / 预览帧 | 论文排版的中间件 | 由 `work/paper/build.sh` + `build_docx.py` 重新生成 |
 | `*.wav` / `*.flac` / `*.npy` | 测试音频可合成 | `work/paper/build.sh` 与 `tests/selftest.py` 自行生成 |
 | `cache/` | 运行时缓存 | 自动重建 |

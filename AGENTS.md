@@ -156,6 +156,24 @@ Deep_PGGB 四列略优、多音持平；但前五行都贴地板，正确读法�
 Deep_PGGB 主动让出 200 Hz 换混叠 −352 dBc（SSRC 同测试 −176 dBc）。**带宽与混叠抑制是同一根旋钮的两端。**
 README 原先"只有 SSRC 保真到 22.05 kHz"的说法据此作废。
 
+### 4.5 流式吞吐与首帧时延（2026-11-23，`deeppggb/dp_stream_bench.py` → `work/stream_engines.json`）
+
+60 s 立体声 44.1→88.2，分块 256/1024/4096，best of 3；吞吐 = 输入秒/墙钟秒，时延 = 首帧输出前消耗的输入。
+
+| 引擎 | 256 | 1024 | 4096 | 首帧时延 |
+|---|---:|---:|---:|---:|
+| Deep_PGGB core 0.5 s（native） | 32.2× | 33.9× | 34.4× | 1.30 s |
+| Deep_PGGB core 1.0 s（native） | 51.1× | 54.2× | 54.8× | 1.80 s |
+| Deep_PGGB core 2.0 s（native） | 69.8× | 74.8× | 76.3× | 2.80 s |
+| libsoxr stream | 566× | 823× | 977× | 0.023 s |
+| FFmpeg pipe | 159× | 154× | 161× | 0.093 s |
+| sox_ng pipe | 91× | 88× | 87× | 0.186 s |
+
+**关键读数**：native 流式达到离线 117.7× 的 46%（core 1.0）到 64%（core 2.0）。旧 Python 外挂补丁（每窗口进 exe）为
+9.6/13.5/18.4×（core 0.5/1.0/2.0，1024 帧），native 提升 3.5–4.1×；剩余差距来自窗口长 core+2×context 却只产出 core
+（core 1.0 重叠 2.6×）与窗口串行，不是语言/FFI 开销。256 帧块不再病态（core 1.0 为 51.1×）。
+r8brain/SSRC/SciPy/PGGB 在工具箱里没有增量绑定，标 n/a；r8brain 的 C++ 类可按块调用，但本工具箱只绑定了 CLI。
+
 ---
 
 ## 5. 走过的坑（每条都是"以为是 A，其实是 B"）
@@ -179,6 +197,81 @@ README 原先"只有 SSRC 保真到 22.05 kHz"的说法据此作废。
 ---
 
 ## 6. 履历（倒序）
+
+### 2026-11-23 01:35 · 流式状态下沉到 C++：54× 对 13.5×，并修掉 FFTW plan 竞态与泄漏
+用户问“dpggb 对音频流的支持能否做到 C++ 源码里，会不会比外挂补丁更快”（m00993）。做了，答案是**能，而且快 3.5–4.1×**。
+- 新 C API 在 `deeppggb/src/dpggb_dll.cpp`：`dpggb_stream_create/push/flush/latency/reset/destroy`。
+  FIFO、游标、窗口拼接、core 裁剪全在 C++；几何与 Python `StreamResampler` 完全一致，4 s 多音逐位相同。
+- **默认 workers=1**：流式每窗口只有 2–3 个内部块，按窗口新建线程池会丢掉 thread-local FFT plan 缓存；
+  单 worker 让 plan 跨窗口复用，60 s 立体声反而更快（48× 对 46×），也避免线程 churn。
+- 60 s 立体声 44.1→88.2、1024 帧块：native **33.9/54.2/74.8×**（core 0.5/1.0/2.0 s，时延 1.30/1.80/2.80 s）；
+  旧 Python 外挂补丁（每窗口重新进 `dpggb.exe` + 临时文件）为 9.6/13.5/18.4×。
+  剩余差距到离线 117.7× 来自 2.6×（core 1.0）上下文重叠与窗口串行，不是语言开销。
+- **顺带修掉两个真 bug**：`PlanCache` 的 thread_local 析构从没释放 FFTW 缓冲，workers>1 的 60 s 流会把内存吃光；
+   `fir_causal` 在多 block worker 下并发创建 FFTW plan（FFTW 计划创建非线程安全），会间歇性 access violation。
+  现在所有 plan 创建走同一把 `fftw_plan_mutex()`，PlanCache 析构销毁 plan 并 `fftw_free` 缓冲。
+- 交付：`deeppggb/deeppggb_stream.py` 的 `NativeStreamResampler`；`deeppggb/test_native_stream.py`；
+  `deeppggb/build.sh`；`work/stream_engines.json` 的 dpggb 行替换为 native；论文 §2.4/§4.7 与图 8 同步。
+  **教训：外挂补丁慢的主因不是 Python 语法，而是每窗口的进程/临时文件与 plan 重建；把状态放进引擎才拿得回这部分。**
+
+### 2026-11-23 00:50 · 论文图表定稿 + 八引擎流式横向 + 补引用
+用户对旧稿的意见：图3两栏不等宽且共享图例、图4/5 线型对色盲不友好、图5 文字重叠、缺"八引擎流式性能"。处理：
+- **fig3** 等宽两栏（width_ratios 1:1），图例只放 a 下方；a 左边界给 0.20，否则 "SciPy resample_poly" 被裁；
+  b 的 "FFmpeg aresample" 与 "libsoxr" 曾撞在一条线上，把 FFmpeg 标签移到点左下才分开。
+- **fig4** 换 Okabe-Ito 八色 + 8 种 dash（色盲可辨）；**fig5** 图例移到 a 上方 2×2（ncol=4 会压到 b）；
+  **fig6b** 图例从轴内左下移到右上（原位置压住 5 ms 曲线）；**fig7** 头注释指向第 1 窗，不再穿过高柱。
+- 新增 `deeppggb/dp_stream_bench.py`、fig8 与 §4.7（数据见 §4.5）：DP core 1.0/1024 帧 13.5×、时延 1.81 s；
+  soxr 823×/0.023 s；FFmpeg 154×/0.093 s；sox_ng 88×/0.186 s。论文现为 **8 图 3 表**。
+- 补引用：[4]–[14] 原先正文未引，逐一挂到方法、引擎与跨引擎比较处；参考文献单独起页，避免第 14 页只剩 3 条。
+教训：**流式数字不能拿离线数字替代**；**长引擎名会把左边界吃掉，默认 left=0.125 不够**；**图例放轴外要先给 panel letter 留位**。
+
+
+### 2026-11-23 00:15 · 新论文成稿（12 页、7 图、3 表）：流式扩写成创新点，八引擎对照
+用户要求重写一篇去 AI 味的学术型论文，图多表少。新稿 `work/paper/Deep_PGGB_paper.docx`（12 页 A4，7 图 3 表，正文约 1.2 万字），PDF 预览 `work/paper/Deep_PGGB_paper.pdf`。
+- **题名**：精确有理倍率下的分块频域重采样：数值保真度、流式扩展与八引擎对照。
+- **结构**：摘要/引言/方法（精确有理映射、分块、C5 边界、FIFO 流式）/测量（零差、口径、地板与灵敏度、速度）/结果（精度、八引擎、通带、吞吐、机理、流式）/讨论/结论/15 篇参考文献。
+- **创新点落地**：流式 FIFO 稳态零差 296–303 dB、长度零漂移，头部 20 ms 约定偏差 −78 dB 后收敛；4.6 节给出算法时延=上下文长度的取舍。
+- **数据**：全部读 `work/*.json`；新图生成器 `work/figures/gen_figures_new.py`（7 图，PNG/PDF/SVG 在 work/figures/）。`gen_figures.py` 写回时报 ReplaceFileW EIO，未动它。
+- **图表**：fig1 管线/流式示意、fig2 真实频谱+灵敏度、fig3 八引擎点阵+帕累托、fig4 通带密集扫描、fig5 吞吐、fig6 阶数/上下文、fig7 流式。表 1 九种倍率零差、表 2 八引擎、表 3 能力对照。
+- **管线改动**：`build_docx.py` 新增 `eq` 块（居中制表位+右对齐编号），并删除 Title 样式的蓝色下边框；参考文献 8.8 pt/1.12 行距后 15 条压进第 12 页（否则第 13 页只剩 2 条）。
+- **口径教训写进论文**：4 s 全文件增益 0.4975 是首尾 20 ms 渐变（占 1%、均值 0.5）造成的，内部增益 1.000000；闭式增益把 PGGB 低估 13 dB；sox_ng 混叠 −394 dBc 是 0/0。
+- **复核**：7 图逐张目视；PDF 12 页逐页看；QA 7 drawing/3 table/26 heading/0 @@FIG/**；表头跨页重复+标题样式 outlineLvl 正常。
+- **待办**：`work/paper/paper_preview.univer` 是本次预览件（4 个 v1–v4 unit），可回收；旧 56 MB `deeppggb_paper.univer` 仍被 Univer 占用。
+- **数字一致性**：正文与 `paper_data.json` 对齐；图 3 中 DP 镜像 −319.0 vs PGGB −309.2（差 9.8 dB），其余四项差 ≤1 dB，摘要/结论已按此改为“同一量级”而非“完全重合”。
+
+### 2026-11-22 23:55 · 论文图表阶段（进行中）：真实频谱数据 + 图2/3 重建
+用户要求新学术论文"图多表少/去AI味"，当前处于图表构建阶段。已完成：
+- **fig1 架构示意**（work/figures/png/fig1_architecture.png）：管线示意，略粗糙但可用（Input→Overlap-add→FFT→Spectral surgery→IFFT，下方 MP-FIR/Roll-off/Taper 三个 kernel 控件）。需修：副标题文字与 IFFT 重叠、缺输出级。
+> **2026-11-23 更正**：下面对 0.4975 的判断已作废——它是首尾各 20 ms 渐变（占 1%、均值 0.5）造成的，内部区间增益精确为 1.000000，见上一条。
+- **fig2 频谱（真实数据）**：新建 `deeppggb/dp_spectrum_data.py` 生成 `work/spectrum_data.json`（4s 1kHz 整数相位音 44.1→88.2，rect 窗）。**关键发现**：resampler 输出相对理想正弦的增益 = **0.4975（−6.064 dB）**，即输出幅度是输入的 0.4975×（不是 0.5×）。残余 = 增益失配的泄漏梳（−46 dBc，bin 3999–4005）。DC −309.6 dBc，null vs 理想正弦 23.8 dB（0.995 增益失配主导）。
+  - **增益与频率无关**（100/1000/5000/10000/20000 Hz 全部 0.497500，−6.0641 dB）→ 这是**全局标量增益**，非通带形状问题。0.4975 ≈ 0.5×(1−0.005)，失配 0.5%。需查 `deeppggb.py` 的归一化（峰值归一 vs 幅度归一）或 FFT 缩放（1/N 系数）。
+  - **这是论文的关键问题**：若增益是 0.995×，所有 dBc 读数已归一化（相对实测基频）不受影响，但绝对增益需在论文说明。**必须在论文方法节明确"增益归一化到峰值 0.99"还是"精确 0.5"**。
+- **fig3 引擎对比（需重建）**：当前是 40 根 grouped bars（8 引擎 × 5 指标），方向反（越矮越好）、图例撞标题。需改 **dot plot / 森林图**（每指标一行、引擎为点，Deep_PGGB 高亮），或"地板以上"放大图。
+- 已生成但需复核：fig4_streaming（null per core + head zone）、fig5_params（taper order + context）。fig4/5 用 work/stream_data.json / work/paper_data.json 真实数据。
+
+## 未来计划（2026-11-23 已完成，见上一条）
+1. **修增益问题**：查 `deeppggb.py` 归一化（0.4975 vs 0.5），确认是否 0.995 全局增益。若是论文方法节写明；若可修，重生成频谱。
+2. **重做 fig3**：改 dot plot / 森林图，8 引擎 × 5 指标，Deep_PGGB 高亮，加"地板 −307 dBc"参考线，图例不与标题重叠。
+3. **重做 fig2**：用真实 spectrum_data.json（rect 窗，无泄漏），画 1kHz 载波 + 真实地板 + 最强调制杂散；加 alias 面板（30kHz 侵略 → 14.1kHz 折叠，真实测量）。
+4. **修 fig1**：加输出级、副标题不与 IFFT 重叠。
+5. **复核 fig4/fig5** 用真实数据，确认坐标/注释不重叠、landed 字号合规。
+6. **接入论文**：改 `work/paper/build_paper_*.py`（图多表少、去 AI 味、流式创新点章节），跑 `merge.sh` 再 `build.sh`（改分段后必须 merge）。
+7. 最终 `build_docx.py` → `embed_figures.py` → `qa_docx.py`，Univer 预览 PDF 复核。
+
+### 2026-11-22 23:40 · 流式处理（创新点）：StreamResampler 上线，稳态与离线位精确
+用户要求把"音频流处理"作为论文创新点（m00105）。新增 `deeppggb/deeppggb_stream.py` 的
+`StreamResampler`（增量 FIFO 前端）+ `deeppggb/test_stream.py`（4 s 双声道多音，非对齐 0.37 s 块）。
+设计要点与验证结论：
+- **窗口几何**：`[左ctx(core_in) | core(core_out) | 右ctx(core_in)]`，仅发 core；cursor 按 core_in 前进，
+  core_out = round(dst·core_sec)，core_in = round(core_out·src/dst)，ctx 按 src/dst 换算。
+- **初版坑**：cross-fade 会混**非重叠**时间区 → 长度漂移 66918/384 帧、null −3.4 dB。删除后长度漂移归零。
+- **稳态位精确**：core 2–7 与离线整文件匹配到 **−293~−297 dB**（float64 地板）；内部 null（过 200 ms 头）
+  **122.3 dB**；长度精确 352800=352800（0 漂移）。
+- **头部约定（非缺陷，已写入 docstring）**：首窗左 ctx 零填充；离线在真实文件头做 20 ms fade，流式无法
+  知道"文件头"存在，故前 ~25 ms 按渐变轮廓不同（实测偏差 span 24.7 ms，0–10ms −1.3dB → 20ms 后 −84dB
+  衰减）。这是边界**约定**差异：连续流的第一个 push 不应当作文件头。
+- 验证：test_stream.py 断言 0 漂移 / 内部 null>100 dB / 头偏差<100 ms；selftest 13/13 PASS（不受影响）。
+**教训：流式窗口的 core 是连续的（cursor 推进），不要加 cross-fade；上下文重叠在 kernel 内部完成。**
 
 ### 2026-11-22 22:30 · 补上通带（带宽）的系统评估：README 那句"只有 SSRC 到 22.05 kHz"是错的
 用户对照 README 与论文发现两处矛盾：README 说 SSRC 是唯一保真到 22.05 kHz 的全带宽，但 Deep_PGGB
@@ -269,9 +362,13 @@ Deep_PGGB 集成进工具箱（`config.py` 按**文件夹**发现，因为 exe �
 
 1. **通带末端有两件不同的事**：降采样方向 21.9k −2.72 dB / 22k −33.2 dB 是**默认 200 Hz 滚降**的主动取舍
    （可调；换更窄的滚降能保住带宽，代价是混叠抑制下降）；而零差深度在源奈奎斯特 100 Hz 以内的崩塌
-   （21.9k 138.6 dB / 22k 57.6 dB）才是**文件边界**决定的，任何渐变窗都这样，PGGB 同量级。
-2. **表 6 前五行贴地板**，排序不可复现（换块长/激励就摆动 5–9 dB），论文里只能写"都不高于 −300 dBc"。
+   （21.9k 136.2 dB / 22k 58.5 dB，与论文 §5.3 的 `paper_data.json` 口径一致）才是**文件边界**决定的，任何渐变窗都这样，PGGB 同量级。
+2. **表 2 前五行贴地板**，排序不可复现（换块长/激励就摆动 5–9 dB），论文里只能写"都不高于 −300 dBc"。
 3. **商业工具无法对比**（Weiss Saracon / iZotope RX / HQPlayer 无驱动内核）。
 4. **速度跨会话 ±20%**，任何"快 N 倍"都要标注口径与重复次数。
 5. **`work/paper/deeppggb_paper.univer`（56 MB 中间件）** 被 Univer 服务占用，无法移入回收站；已在 .gitignore 排除。
 6. GUI 用 `python app.py --port 8099` 启动；五路由（/ /engines /analyze /glossary /jobs）自检全 200。
+7. **流式是另一个工作点，不是免费维度**：native DP core 1.0/1024 帧 54.2×、首帧 1.80 s；硬实时监听要把
+   core+context 压到 100 ms 量级，代价是 22.05 kHz 混叠从 −211.2 降到 −161.2 dBc。当前原生流式默认每流一个
+   block worker（workers=1），多声道按声道串行；8 声道会按声道线性变慢，需要时再并行化。r8brain/SSRC/SciPy/PGGB
+   在本工具箱内没有增量接口，不参与流式横向；r8brain 的 C++ 类可按块调用但未绑定。

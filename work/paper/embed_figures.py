@@ -127,21 +127,21 @@ def keep_tables_whole(doc):
     return re.sub(r"<w:tbl>.*?</w:tbl>", fix_table, doc, flags=re.S)
 
 
-TITLE = ("Deep_PGGB：以精确有理倍率实现 300 dB 数值保真的分块砖墙式采样率转换")
+TITLE = ("精确有理倍率下的分块频域重采样：数值保真度、流式扩展与八引擎对照")
 CORE_XML = (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
     '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"'
     ' xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"'
     ' xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
     '<dc:title>' + TITLE + '</dc:title>'
-    '<dc:subject>采样率转换 / 砖墙滤波器 / 数值保真度</dc:subject>'
-    '<dc:creator>SonarSRC Project</dc:creator>'
-    '<cp:keywords>sample-rate conversion; brickwall filter; null test; numerical fidelity; '
-    'partitioned processing; window function; intermodulation distortion</cp:keywords>'
-    '<dc:description>Technical Report, SonarSRC Project, 2026-11-22</dc:description>'
-    '<cp:lastModifiedBy>SonarSRC Project</cp:lastModifiedBy>'
-    '<dcterms:created xsi:type="dcterms:W3CDTF">2026-11-22T09:00:00Z</dcterms:created>'
-    '<dcterms:modified xsi:type="dcterms:W3CDTF">2026-11-22T09:00:00Z</dcterms:modified>'
+    '<dc:subject>采样率转换 / 分块频域 / 数值保真度 / 流式处理</dc:subject>'
+    '<dc:creator>SonarSRC 项目组</dc:creator>'
+    '<cp:keywords>sample-rate conversion; spectral zero-padding; null test; numerical fidelity; '
+    'partitioned processing; window function; streaming</cp:keywords>'
+    '<dc:description>Technical Report, SonarSRC Project, 2026-11-23</dc:description>'
+    '<cp:lastModifiedBy>SonarSRC 项目组</cp:lastModifiedBy>'
+    '<dcterms:created xsi:type="dcterms:W3CDTF">2026-11-23T00:00:00Z</dcterms:created>'
+    '<dcterms:modified xsi:type="dcterms:W3CDTF">2026-11-23T00:00:00Z</dcterms:modified>'
     '</cp:coreProperties>'
 )
 

@@ -14,7 +14,7 @@ import zipfile
 
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor
@@ -195,6 +195,12 @@ def main():
     for attr in ("left_margin", "right_margin", "top_margin", "bottom_margin"):
         setattr(sec, attr, Pt(72))
 
+    tstyle = doc.styles["Title"].element
+    tpr = tstyle.find(qn("w:pPr"))
+    if tpr is not None:
+        for bd in tpr.findall(qn("w:pBdr")):
+            tpr.remove(bd)
+
     normal = doc.styles["Normal"]
     normal.font.name = LATIN
     normal.font.size = Pt(10.5)
@@ -238,16 +244,29 @@ def main():
         elif kind == "caption":
             para(doc, b["x"], size=9, align=WD_ALIGN_PARAGRAPH.CENTER,
                  before=4, after=10, line=1.15, page_break=pending_break)
+        elif kind == "eq":
+            p = doc.add_paragraph()
+            pf = p.paragraph_format
+            pf.space_before = Pt(6)
+            pf.space_after = Pt(6)
+            pf.line_spacing = 1.2
+            pf.first_line_indent = Pt(0)
+            pf.tab_stops.add_tab_stop(Pt(225.5), WD_TAB_ALIGNMENT.CENTER)
+            pf.tab_stops.add_tab_stop(Pt(451), WD_TAB_ALIGNMENT.RIGHT)
+            run = p.add_run("\t" + b["x"] + "\t(" + str(b.get("n", 1)) + ")")
+            cjk(run, SONG, 10.5)
         elif kind == "ref":
-            para(doc, b["x"], size=9, before=0, after=2, line=1.2,
+            para(doc, b["x"], size=8.5, before=0, after=0, line=1.10,
                  page_break=pending_break)
         else:
             para(doc, b["x"], size=10.5, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
                  after=0, line=1.5, indent_chars=2, page_break=pending_break)
         pending_break = False
 
-    doc.core_properties.title = "Deep_PGGB：以精确有理倍率实现 300 dB 数值保真的分块砖墙式采样率转换"
-    doc.core_properties.author = "SonarSRC Project"
+    doc.core_properties.title = "精确有理倍率下的分块频域重采样：数值保真度、流式扩展与八引擎对照"
+    doc.core_properties.author = "SonarSRC 项目组"
+    doc.core_properties.subject = "分块频域重采样；数值保真度；流式处理"
+    doc.core_properties.keywords = "sample rate conversion; spectral zero-padding; null test; streaming"
     doc.save(OUT)
     _declare_drawing_ns(OUT)
     print("wrote", OUT, stats)

@@ -62,6 +62,7 @@ template <> struct Fftw<double> {
     using plan = fftw_plan;
     using cplx = fftw_complex;
     static void* alloc(size_t n) { return fftw_malloc(n); }
+    static void free(void* p) { fftw_free(p); }
     // FFTW_MEASURE was tried and rejected: on the awkward grid sizes this
     // resampler needs (P = M*2^k, e.g. 147*256) it spends ~6 s planning, which
     // dwarfs the transform for any short file. ESTIMATE costs nothing and the
@@ -78,6 +79,7 @@ template <> struct Fftw<long double> {
     using plan = fftwl_plan;
     using cplx = fftwl_complex;
     static void* alloc(size_t n) { return fftwl_malloc(n); }
+    static void free(void* p) { fftwl_free(p); }
     static plan r2c(int n, long double* i, cplx* o) { return fftwl_plan_dft_r2c_1d(n, i, o, FFTW_ESTIMATE); }
     static plan c2r(int n, cplx* i, long double* o) { return fftwl_plan_dft_c2r_1d(n, i, o, FFTW_ESTIMATE); }
     static void exec(plan p) { fftwl_execute(p); }
@@ -85,6 +87,15 @@ template <> struct Fftw<long double> {
     static void init_threads() { fftwl_init_threads(); }
     static void with_threads(int n) { fftwl_plan_with_nthreads(n); }
 };
+
+// FFTW plan creation is not thread-safe. Every path that creates a plan must
+// hold this lock; execution is safe to run concurrently. The block workers
+// used to create plans in fir_causal() without it, which is a race that only
+// shows up with workers > 1 (intermittent access violation).
+inline std::mutex& fftw_plan_mutex() {
+    static std::mutex m;
+    return m;
+}
 
 // A plan is bound to its buffers, so each cache entry owns a scratch set.
 template <typename R>
@@ -110,8 +121,7 @@ public:
         // concurrently. A global lock around creation (not execution) is
         // enough: executing a plan from several threads is fine, and each
         // thread owns its own buffers.
-        static std::mutex create_mu;
-        std::lock_guard<std::mutex> create_lock(create_mu);
+        std::lock_guard<std::mutex> create_lock(fftw_plan_mutex());
 
         static std::once_flag once;
         std::call_once(once, [] { Fftw<R>::init_threads(); });
@@ -133,6 +143,21 @@ public:
         p.r2c = Fftw<R>::r2c(n_in, p.in, p.spec);
         p.c2r = Fftw<R>::c2r(n_out, p.spec, p.out);
         return map_.emplace(key, p).first->second;
+    }
+
+    ~PlanCache() {
+        // Plans own FFTW buffers, and thread_local destruction happens when a
+        // block worker exits. Without this, every window that used a fresh
+        // worker leaked its scratch set: a 60 s stereo run with 8 workers grew
+        // without bound and could exhaust the machine.
+        for (auto& kv : map_) {
+            Plans<R>& p = kv.second;
+            if (p.r2c) Fftw<R>::destroy(p.r2c);
+            if (p.c2r) Fftw<R>::destroy(p.c2r);
+            Fftw<R>::free(p.in);
+            Fftw<R>::free(p.out);
+            Fftw<R>::free(p.spec);
+        }
     }
 
 private:
@@ -417,6 +442,8 @@ void fir_causal(std::vector<R>& x, const std::vector<R>& h) {
     // Transform the impulse response once.
     for (size_t i = 0; i < L; ++i) buf[i] = h[i];
     {
+        std::lock_guard<std::mutex> lock(fftw_plan_mutex());
+        Fftw<R>::with_threads(1);
         auto p = Fftw<R>::r2c((int) N, buf.data(), hspec.data());
         Fftw<R>::exec(p);
         Fftw<R>::destroy(p);
@@ -425,8 +452,13 @@ void fir_causal(std::vector<R>& x, const std::vector<R>& h) {
     // FFTW plans are bound to the buffers they were created with. Both buffers
     // live for the whole loop and are only overwritten in place, so the plans
     // can be built once instead of per block.
-    auto pr = Fftw<R>::r2c((int) N, buf.data(), bspec.data());
-    auto pc = Fftw<R>::c2r((int) N, bspec.data(), buf.data());
+    typename Fftw<R>::plan pr = nullptr;
+    typename Fftw<R>::plan pc = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(fftw_plan_mutex());
+        pr = Fftw<R>::r2c((int) N, buf.data(), bspec.data());
+        pc = Fftw<R>::c2r((int) N, bspec.data(), buf.data());
+    }
 
     std::vector<R> out(n, (R) 0);
     size_t pos = 0;

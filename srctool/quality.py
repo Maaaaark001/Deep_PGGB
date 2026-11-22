@@ -580,6 +580,20 @@ def null_test(y: np.ndarray, src: int, dst: int, engine: str, opts: dict | None,
     n = min(a.shape[0], b.shape[0])
     a, b = a[:n], b[:n]
 
+    # --- 增益 / 直流 诊断（P1）-----------------------------------------
+    # 只报告，不改写零差深度。理由见论文 §4.3：闭式 LS 增益估计 g=<a,b>/<b,b>
+    # 的误差不是二阶的，会把一对本来就完美的引擎（g≈1）的零差从 387 dB 压到
+    # 297 dB——拟合注入的数值误差比它要去掉的尺度差还大。所以这里只算出 g/DC
+    # 让"归一化不一致"变得可见，深度仍用未拟合的 a-b。
+    if n > 4 and np.std(a) > 0:
+        m_a = float(np.mean(a))
+        m_b = float(np.mean(b))
+        var_a = float(np.sum((a - m_a) ** 2))
+        ls_gain = float(np.sum((a - m_a) * (b - m_b)) / var_a) if var_a > 0 else 1.0
+        ls_dc = m_b - ls_gain * m_a
+    else:
+        ls_gain, ls_dc = 1.0, 0.0
+
     # 掐掉两端的边界区再比较。原因：Deep_PGGB 会在文件首尾各做 100 ms 渐变
     # （那是它精度能到 −218 dB 的前提），而 r8brain 不做。两段渐变本身
     # 就是幅度调制，会在差值里留下 −27 dB 的"假差异"，把真实的滤波器差异
@@ -635,6 +649,10 @@ def null_test(y: np.ndarray, src: int, dst: int, engine: str, opts: dict | None,
                    "ref_db": band_ref[i]} for i in range(len(bands))],
         "hot_band": {"lo": hot[0], "hi": hot[1], "db": hot[2]},
         "diff_concentrated_high": high_only,
+        # 诊断字段：LS 拟合增益与直流偏移。偏离 1.0 / 0.0 较多说明两台引擎归一化
+        # 不一致，需要人工判断是通带增益差还是整体尺度差；不影响 null_depth_db。
+        "ls_gain": round(ls_gain, 6),
+        "ls_dc": float("%.3e" % ls_dc),
         "seconds_tested": round(window / float(src), 2),
         "truncated": window < n_src,
         "engine": engine, "reference": reference_engine, "src": src, "dst": dst,

@@ -6,7 +6,7 @@ parts = ["build_paper_1.py", "build_paper_2.py", "build_paper_3.py"]
 out = []
 for f in parts:
     out.append(open(f, encoding="utf-8").read())
-open("build_paper.py", "w", encoding="utf-8").write("\n".join(out))
+open("build_paper.py", "w", encoding="utf-8", newline="\n").write("\n".join(out))
 print("merged")
 PY
 python build_paper.py
