@@ -108,13 +108,13 @@ python app.py --reload            # 开发模式
 
 | key | 引擎 | 特点 | 实测杂散 |
 | --- | --- | --- | --- |
-| `dpggb` | **Deep_PGGB**（自研） | 近理想低通，任意倍率；对精确参考 302.6 dB（PGGB 302.0 dB，不可区分）；五项失真列全部不劣于 PGGB，速度 118× 对 30×（r8brain 56×） | −304.2 dBc |
+| `dpggb` | **Deep_PGGB**（自研） | 近理想低通，任意倍率；对精确参考 302.6 dB（PGGB 302.0 dB，不可区分）；四项失真列不劣于 PGGB、多音持平；速度 118× 对 30×（r8brain 90×）；**上行方向唯一把通带保持到源奈奎斯特**（22.049 kHz −0.05 dB） | −304.2 dBc |
 | `pggb` | **PGGB（原版，仅基准）** | 商用离线工具，精度与 Deep_PGGB 不可区分；**只接受整数倍率、无降采样**，因此只出现在基准页，不参与转换 | −304.0 dBc |
 | `r8b` | r8brain-free | 第三好的保真度，MIT | −283.6 dBc |
 | `soxng` | sox_ng 14.9 `rate` | 旋钮最全，编码/抖动也归它 | −186.6 dBc (`-u`) |
-| `ssrc` | SSRC / Shibatch | 唯一保真到 22.05 kHz 的全带宽 | −152.2 dBc (insane) |
-| `soxr` | libsoxr | 全场最快（44.1→88.2 达 1391× 实时） | −195.7 dBc |
-| `swr` | ffmpeg `aresample` | 生态最广，但通带只到 21 kHz | −195.7 dBc |
+| `ssrc` | SSRC / Shibatch | **下行**保到 22 kHz（降采样方向最宽）；上行在 22.05 kHz 陡降 125 dB | −152.2 dBc (insane) |
+| `soxr` | libsoxr | 全场最快（60 s 立体声 44.1→88.2 达 585× 实时） | −195.7 dBc |
+| `swr` | ffmpeg `aresample` | 生态最广，但通带 21 kHz 已 −4.1 dB、21.5 kHz −31.4 dB | −195.7 dBc |
 | `scipy` | `resample_poly` | 纯 Python 参考实现 | −86.2 dBc |
 
 > 杂散一列是**整数相位激励 + 1 秒居中窗 + 泄漏免疫口径**（扣掉基频 bin 后的残余）下的读数。
