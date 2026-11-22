@@ -47,9 +47,36 @@ def test_env() -> str:
     return f"python {env['python']}"
 
 
-def test_demo() -> str:
+def _ensure_demo() -> Path:
+    """演示素材：8 秒 44.1 kHz 立体声，带限和弦 + 微量噪声。
+
+    素材不进仓库（见 .gitignore 的 *.wav），因此第一次自检时现生成，
+    保证 clone 之后无需任何预处理就能直接跑通。
+    """
     demo = config.WORK / "demo_44k.wav"
-    assert demo.exists(), f"缺少演示素材 {demo}（先跑 work/gen_demo.py）"
+    if demo.exists():
+        return demo
+    demo.parent.mkdir(parents=True, exist_ok=True)
+    rate, n = 44100, 44100 * 8
+    t = np.arange(n, dtype=np.int64)
+
+    def tone(hz: int, amp: float) -> np.ndarray:
+        # 整数相位递推：避免 sin(2πft) 在 8 秒里的相位累积误差污染素材
+        k = (t * int(hz)) % rate
+        return amp * np.sin(2 * np.pi * k / rate)
+
+    left = tone(220, 0.30) + tone(880, 0.12) + tone(3520, 0.06)
+    right = tone(330, 0.30) + tone(1320, 0.12) + tone(7040, 0.06)
+    rng = np.random.default_rng(7)
+    y = np.stack([left, right], axis=1) + rng.normal(0.0, 3e-5, (n, 2))
+    import soundfile as sf
+
+    sf.write(str(demo), y, rate, subtype="FLOAT")
+    return demo
+
+
+def test_demo() -> str:
+    demo = _ensure_demo()
     info = probe.probe(str(demo))
     assert info.ok, info.error
     assert info.sample_rate == 44100 and info.channels == 2, (info.sample_rate, info.channels)
