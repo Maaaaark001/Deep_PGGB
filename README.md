@@ -1,7 +1,24 @@
 # SonarSRC · 多格式采样率工具箱
 
+[![repo](https://img.shields.io/badge/github-Deep_PGGB-2ea44f?logo=github)](https://github.com/Maaaaark001/Deep_PGGB)
+[![license](https://img.shields.io/badge/license-MIT-blue)](#许可与致谢)
+
 一个用 Python + NiceGUI 写的本地 SRC（Sample Rate Conversion）工作台：
 **输入任意格式 → 调参数重采样/转格式 → 对输入质量、输出质量、SRC 本身质量给出可解释的量化结论。**
+
+仓库：<https://github.com/Maaaaark001/Deep_PGGB>
+
+```bash
+git clone https://github.com/Maaaaark001/Deep_PGGB.git sonarsrc
+cd sonarsrc
+pip install -r requirements.txt
+python app.py --port 8099          # 打开 http://127.0.0.1:8099
+python tests/selftest.py           # 12 项自检，演示素材会自动生成
+```
+
+> 仓库只含源码与文档：引擎二进制（`*.exe`/`*.dll`）、第三方 FFTW 库与测试音频不入库，
+> 详见 [仓库说明](#仓库说明)。国内网络推送可走代理：
+> `git config http.proxy http://127.0.0.1:7897`（或 `HTTPS_PROXY` 环境变量）。
 
 ![工作台](work/shots/workbench_1440.png)
 
