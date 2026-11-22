@@ -1,0 +1,45 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# ---- 二进制与构建产物（体积大、可重建）----
+*.dll
+*.exe
+*.obj
+*.o
+*.lib
+deeppggb/third_party/
+
+# ---- 音频与测量中间件（可重新生成）----
+*.wav
+*.flac
+*.f64
+*.npy
+*.univer
+work/paper/preview*/
+work/paper/pv*/
+work/paper/archive/
+
+# ---- 论文中间产物：保留构建脚本、blocks.json 与最终 docx ----
+work/paper/*.pdf
+work/paper/*.png
+work/paper/qa*.sh
+work/paper/qa[0-9]*.py
+work/paper/final*.sh
+work/paper/dump*
+work/paper/embed.sh
+work/paper/v2.sh
+work/paper/tblw.sh
+work/paper/inspect.sh
+work/paper/pdf*.sh
+work/paper/urlcheck.sh
+work/paper/verify_png.sh
+
+# ---- 杂项 ----
+cache/
+work/cleanup.sh
+*.log
+*.tmp
+.DS_Store

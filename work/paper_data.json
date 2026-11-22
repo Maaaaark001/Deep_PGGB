@@ -1,0 +1,749 @@
+{
+ "accuracy": [
+  {
+   "src": 44100,
+   "dst": 48000,
+   "ratio": 1.088435,
+   "null_db": 301.8
+  },
+  {
+   "src": 44100,
+   "dst": 88200,
+   "ratio": 2.0,
+   "null_db": 303.5
+  },
+  {
+   "src": 44100,
+   "dst": 96000,
+   "ratio": 2.176871,
+   "null_db": 301.8
+  },
+  {
+   "src": 44100,
+   "dst": 176400,
+   "ratio": 4.0,
+   "null_db": 302.6
+  },
+  {
+   "src": 48000,
+   "dst": 44100,
+   "ratio": 0.91875,
+   "null_db": 302.1
+  },
+  {
+   "src": 96000,
+   "dst": 44100,
+   "ratio": 0.459375,
+   "null_db": 303.1
+  },
+  {
+   "src": 44100,
+   "dst": 50001,
+   "ratio": 1.13381,
+   "null_db": 300.9
+  },
+  {
+   "src": 44100,
+   "dst": 56448,
+   "ratio": 1.28,
+   "null_db": 301.8
+  },
+  {
+   "src": 96000,
+   "dst": 192000,
+   "ratio": 2.0,
+   "null_db": 303.8
+  }
+ ],
+ "taper_order": [
+  {
+   "shape": "cos",
+   "order": 1,
+   "label": "cos (C1)",
+   "leak_22050_db": -215.6,
+   "null_15k_db": 205.4,
+   "null_40tone_db": 207.9
+  },
+  {
+   "shape": "smooth2",
+   "order": 2,
+   "label": "smooth2 (C2)",
+   "leak_22050_db": -259.8,
+   "null_15k_db": 247.9,
+   "null_40tone_db": 233.4
+  },
+  {
+   "shape": "smooth4",
+   "order": 4,
+   "label": "smooth4 (C4)",
+   "leak_22050_db": -329.9,
+   "null_15k_db": 305.8,
+   "null_40tone_db": 293.9
+  },
+  {
+   "shape": "smooth5",
+   "order": 5,
+   "label": "smooth5 (C5)",
+   "leak_22050_db": -355.7,
+   "null_15k_db": 306.0,
+   "null_40tone_db": 302.6
+  },
+  {
+   "shape": "smooth6",
+   "order": 6,
+   "label": "smooth6 (C6)",
+   "leak_22050_db": -376.9,
+   "null_15k_db": 306.0,
+   "null_40tone_db": 302.6
+  }
+ ],
+ "freq_sweep": [
+  {
+   "hz": 1000,
+   "null_smooth2": 281.0,
+   "null_smooth5": 305.9
+  },
+  {
+   "hz": 5000,
+   "null_smooth2": 276.8,
+   "null_smooth5": 306.7
+  },
+  {
+   "hz": 10000,
+   "null_smooth2": 254.4,
+   "null_smooth5": 306.4
+  },
+  {
+   "hz": 15000,
+   "null_smooth2": 247.9,
+   "null_smooth5": 306.0
+  },
+  {
+   "hz": 18000,
+   "null_smooth2": 235.2,
+   "null_smooth5": 305.1
+  },
+  {
+   "hz": 19000,
+   "null_smooth2": 226.1,
+   "null_smooth5": 292.2
+  },
+  {
+   "hz": 20000,
+   "null_smooth2": 213.5,
+   "null_smooth5": 265.1
+  },
+  {
+   "hz": 21000,
+   "null_smooth2": 199.6,
+   "null_smooth5": 221.6
+  },
+  {
+   "hz": 21500,
+   "null_smooth2": 176.1,
+   "null_smooth5": 186.1
+  },
+  {
+   "hz": 21900,
+   "null_smooth2": 119.3,
+   "null_smooth5": 136.2
+  },
+  {
+   "hz": 21950,
+   "null_smooth2": 97.1,
+   "null_smooth5": 81.2
+  },
+  {
+   "hz": 22000,
+   "null_smooth2": 61.8,
+   "null_smooth5": 58.5
+  }
+ ],
+ "file_length": [
+  {
+   "seconds": 0.1,
+   "null_db": 234.4
+  },
+  {
+   "seconds": 0.2,
+   "null_db": 286.0
+  },
+  {
+   "seconds": 0.5,
+   "null_db": 306.7
+  },
+  {
+   "seconds": 1.0,
+   "null_db": 306.6
+  },
+  {
+   "seconds": 2.0,
+   "null_db": 306.5
+  },
+  {
+   "seconds": 4.0,
+   "null_db": 306.0
+  }
+ ],
+ "block_invariance": [
+  {
+   "block_s": 0.25,
+   "null_vs_whole_db": 305.6
+  },
+  {
+   "block_s": 0.5,
+   "null_vs_whole_db": 305.6
+  },
+  {
+   "block_s": 1.0,
+   "null_vs_whole_db": 305.6
+  },
+  {
+   "block_s": 2.0,
+   "null_vs_whole_db": 305.6
+  },
+  {
+   "block_s": 4.0,
+   "null_vs_whole_db": 5986.0
+  },
+  {
+   "block_s": 8.0,
+   "null_vs_whole_db": 5986.0
+  },
+  {
+   "block_s": 30.0,
+   "null_vs_whole_db": 5986.0
+  }
+ ],
+ "speed": [
+  {
+   "block_s": 0.5,
+   "workers": 1,
+   "speed_x": 70.5
+  },
+  {
+   "block_s": 0.5,
+   "workers": 2,
+   "speed_x": 88.5
+  },
+  {
+   "block_s": 0.5,
+   "workers": 4,
+   "speed_x": 109.4
+  },
+  {
+   "block_s": 0.5,
+   "workers": 8,
+   "speed_x": 78.4
+  },
+  {
+   "block_s": 1.0,
+   "workers": 1,
+   "speed_x": 74.4
+  },
+  {
+   "block_s": 1.0,
+   "workers": 2,
+   "speed_x": 104.9
+  },
+  {
+   "block_s": 1.0,
+   "workers": 4,
+   "speed_x": 108.8
+  },
+  {
+   "block_s": 1.0,
+   "workers": 8,
+   "speed_x": 104.7
+  },
+  {
+   "block_s": 2.0,
+   "workers": 1,
+   "speed_x": 78.1
+  },
+  {
+   "block_s": 2.0,
+   "workers": 2,
+   "speed_x": 100.4
+  },
+  {
+   "block_s": 2.0,
+   "workers": 4,
+   "speed_x": 110.8
+  },
+  {
+   "block_s": 2.0,
+   "workers": 8,
+   "speed_x": 107.7
+  },
+  {
+   "block_s": 4.0,
+   "workers": 1,
+   "speed_x": 83.4
+  },
+  {
+   "block_s": 4.0,
+   "workers": 2,
+   "speed_x": 109.2
+  },
+  {
+   "block_s": 4.0,
+   "workers": 4,
+   "speed_x": 114.2
+  },
+  {
+   "block_s": 4.0,
+   "workers": 8,
+   "speed_x": 115.0
+  },
+  {
+   "block_s": 30.0,
+   "workers": 1,
+   "speed_x": 66.5
+  },
+  {
+   "block_s": 30.0,
+   "workers": 2,
+   "speed_x": 100.4
+  },
+  {
+   "block_s": 30.0,
+   "workers": 4,
+   "speed_x": 104.2
+  },
+  {
+   "block_s": 30.0,
+   "workers": 8,
+   "speed_x": 100.4
+  }
+ ],
+ "rolloff": [
+  {
+   "rolloff_hz": 0,
+   "order": 1,
+   "alias_22050": -15.5,
+   "alias_22100": -63.5,
+   "alias_22500": -174.2
+  },
+  {
+   "rolloff_hz": 50,
+   "order": 1,
+   "alias_22050": -84.8,
+   "alias_22100": -123.7,
+   "alias_22500": -211.0
+  },
+  {
+   "rolloff_hz": 50,
+   "order": 2,
+   "alias_22050": -127.6,
+   "alias_22100": -145.2,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 50,
+   "order": 3,
+   "alias_22050": -124.1,
+   "alias_22100": -141.7,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 50,
+   "order": 4,
+   "alias_22050": -121.6,
+   "alias_22100": -139.2,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 100,
+   "order": 1,
+   "alias_22050": -96.9,
+   "alias_22100": -135.7,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 100,
+   "order": 2,
+   "alias_22050": -157.1,
+   "alias_22100": -203.3,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 100,
+   "order": 3,
+   "alias_22050": -153.8,
+   "alias_22100": -200.4,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 100,
+   "order": 4,
+   "alias_22050": -151.3,
+   "alias_22100": -198.1,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 200,
+   "order": 1,
+   "alias_22050": -108.9,
+   "alias_22100": -147.8,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 200,
+   "order": 2,
+   "alias_22050": -195.1,
+   "alias_22100": -211.1,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 200,
+   "order": 3,
+   "alias_22050": -210.1,
+   "alias_22100": -211.1,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 200,
+   "order": 4,
+   "alias_22050": -209.4,
+   "alias_22100": -211.0,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 400,
+   "order": 1,
+   "alias_22050": -121.0,
+   "alias_22100": -159.8,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 400,
+   "order": 2,
+   "alias_22050": -210.6,
+   "alias_22100": -211.2,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 400,
+   "order": 3,
+   "alias_22050": -211.3,
+   "alias_22100": -211.2,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 400,
+   "order": 4,
+   "alias_22050": -211.3,
+   "alias_22100": -211.2,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 800,
+   "order": 1,
+   "alias_22050": -133.0,
+   "alias_22100": -171.9,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 800,
+   "order": 2,
+   "alias_22050": -211.3,
+   "alias_22100": -211.2,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 800,
+   "order": 3,
+   "alias_22050": -211.3,
+   "alias_22100": -211.2,
+   "alias_22500": -211.1
+  },
+  {
+   "rolloff_hz": 800,
+   "order": 4,
+   "alias_22050": -211.3,
+   "alias_22100": -211.2,
+   "alias_22500": -211.1
+  }
+ ],
+ "context": [
+  {
+   "context_ms": 50,
+   "btaper_ms": 5,
+   "join_db": 298.5,
+   "alias_22050": -118.9
+  },
+  {
+   "context_ms": 50,
+   "btaper_ms": 10,
+   "join_db": 305.8,
+   "alias_22050": -129.4
+  },
+  {
+   "context_ms": 50,
+   "btaper_ms": 20,
+   "join_db": 305.8,
+   "alias_22050": -137.4
+  },
+  {
+   "context_ms": 50,
+   "btaper_ms": 50,
+   "join_db": 305.9,
+   "alias_22050": -115.0
+  },
+  {
+   "context_ms": 100,
+   "btaper_ms": 5,
+   "join_db": 305.0,
+   "alias_22050": -133.1
+  },
+  {
+   "context_ms": 100,
+   "btaper_ms": 10,
+   "join_db": 305.8,
+   "alias_22050": -144.3
+  },
+  {
+   "context_ms": 100,
+   "btaper_ms": 20,
+   "join_db": 305.8,
+   "alias_22050": -161.2
+  },
+  {
+   "context_ms": 100,
+   "btaper_ms": 50,
+   "join_db": 305.8,
+   "alias_22050": -156.9
+  },
+  {
+   "context_ms": 200,
+   "btaper_ms": 5,
+   "join_db": 305.7,
+   "alias_22050": -147.4
+  },
+  {
+   "context_ms": 200,
+   "btaper_ms": 10,
+   "join_db": 305.8,
+   "alias_22050": -158.7
+  },
+  {
+   "context_ms": 200,
+   "btaper_ms": 20,
+   "join_db": 305.8,
+   "alias_22050": -177.8
+  },
+  {
+   "context_ms": 200,
+   "btaper_ms": 50,
+   "join_db": 305.9,
+   "alias_22050": -177.3
+  },
+  {
+   "context_ms": 400,
+   "btaper_ms": 5,
+   "join_db": 305.7,
+   "alias_22050": -163.8
+  },
+  {
+   "context_ms": 400,
+   "btaper_ms": 10,
+   "join_db": 305.7,
+   "alias_22050": -175.3
+  },
+  {
+   "context_ms": 400,
+   "btaper_ms": 20,
+   "join_db": 305.7,
+   "alias_22050": -195.1
+  },
+  {
+   "context_ms": 400,
+   "btaper_ms": 50,
+   "join_db": 305.8,
+   "alias_22050": -195.1
+  },
+  {
+   "context_ms": 800,
+   "btaper_ms": 5,
+   "join_db": 305.7,
+   "alias_22050": -187.7
+  },
+  {
+   "context_ms": 800,
+   "btaper_ms": 10,
+   "join_db": 305.7,
+   "alias_22050": -199.0
+  },
+  {
+   "context_ms": 800,
+   "btaper_ms": 20,
+   "join_db": 305.7,
+   "alias_22050": -211.2
+  },
+  {
+   "context_ms": 800,
+   "btaper_ms": 50,
+   "join_db": 305.8,
+   "alias_22050": -211.2
+  }
+ ],
+ "passband": [
+  {
+   "hz": 1000.0,
+   "gain_db": -0.0
+  },
+  {
+   "hz": 10000.0,
+   "gain_db": -0.0
+  },
+  {
+   "hz": 18000.0,
+   "gain_db": 0.0
+  },
+  {
+   "hz": 20000.0,
+   "gain_db": -0.0
+  },
+  {
+   "hz": 21000.0,
+   "gain_db": 0.0
+  },
+  {
+   "hz": 21500.0,
+   "gain_db": 0.0
+  },
+  {
+   "hz": 21900.0,
+   "gain_db": -0.0
+  },
+  {
+   "hz": 22000.0,
+   "gain_db": 0.0
+  },
+  {
+   "hz": 22049.0,
+   "gain_db": 0.179
+  }
+ ],
+ "minphase": {
+  "linear": -64.1,
+  "min": -84.6
+ },
+ "engines": [
+  {
+   "engine": "dpggb",
+   "label": "Deep_PGGB",
+   "spur_dbc": -304.2,
+   "image_dbc": -319.0,
+   "alias_dbc": -352.0,
+   "alias_na": false,
+   "imd_dbc": -332.4,
+   "imd_smpte_dbc": -335.0,
+   "mt_dbc": -295.0,
+   "speed_x": 81.4
+  },
+  {
+   "engine": "pggb",
+   "label": "PGGB",
+   "spur_dbc": -304.0,
+   "image_dbc": -309.2,
+   "alias_dbc": null,
+   "alias_na": true,
+   "imd_dbc": -331.9,
+   "imd_smpte_dbc": -334.0,
+   "mt_dbc": -295.1,
+   "speed_x": 20.9
+  },
+  {
+   "engine": "r8b",
+   "label": "r8brain-free",
+   "spur_dbc": -283.6,
+   "image_dbc": -283.6,
+   "alias_dbc": -268.0,
+   "alias_na": false,
+   "imd_dbc": -334.5,
+   "imd_smpte_dbc": -332.7,
+   "mt_dbc": -262.3,
+   "speed_x": 55.6
+  },
+  {
+   "engine": "soxng",
+   "label": "sox_ng rate",
+   "spur_dbc": -186.6,
+   "image_dbc": -207.0,
+   "alias_dbc": -221.0,
+   "alias_na": false,
+   "imd_dbc": -202.3,
+   "imd_smpte_dbc": -197.7,
+   "mt_dbc": -182.6,
+   "speed_x": 60.6
+  },
+  {
+   "engine": "swr",
+   "label": "FFmpeg aresample",
+   "spur_dbc": -195.7,
+   "image_dbc": -195.7,
+   "alias_dbc": -248.9,
+   "alias_na": false,
+   "imd_dbc": -331.8,
+   "imd_smpte_dbc": -332.0,
+   "mt_dbc": -196.7,
+   "speed_x": 51.5
+  },
+  {
+   "engine": "soxr",
+   "label": "libsoxr",
+   "spur_dbc": -195.7,
+   "image_dbc": -195.7,
+   "alias_dbc": -249.3,
+   "alias_na": false,
+   "imd_dbc": -331.8,
+   "imd_smpte_dbc": -332.0,
+   "mt_dbc": -196.7,
+   "speed_x": 274.7
+  },
+  {
+   "engine": "ssrc",
+   "label": "SSRC / Shibatch",
+   "spur_dbc": -152.2,
+   "image_dbc": -172.8,
+   "alias_dbc": -176.3,
+   "alias_na": false,
+   "imd_dbc": -169.2,
+   "imd_smpte_dbc": -165.6,
+   "mt_dbc": -150.2,
+   "speed_x": null
+  },
+  {
+   "engine": "scipy",
+   "label": "SciPy resample_poly",
+   "spur_dbc": -86.2,
+   "image_dbc": -86.2,
+   "alias_dbc": -61.6,
+   "alias_na": false,
+   "imd_dbc": -339.0,
+   "imd_smpte_dbc": -330.7,
+   "mt_dbc": -65.0,
+   "speed_x": 77.0
+  }
+ ],
+ "pggb": {
+  "null_db": 302.0,
+  "speed_x_30s_stereo": 21.1,
+  "dpggb_speed_x_30s_stereo": 43.7,
+  "arbitrary_ratio_out_samples": 176400,
+  "arbitrary_ratio_expected": 192000,
+  "speed_x_60s_stereo": 20.9,
+  "dpggb_speed_x_60s_stereo": 81.4,
+  "r8b_speed_x_60s_stereo": 55.6
+ },
+ "protocol": {
+  "excitation_s": 16.0,
+  "windows": 5,
+  "aggregate": "median",
+  "upsampling": "44.1->88.2",
+  "alias": "96->44.1 two-tone",
+  "speed": "60 s stereo 44.1->176.4, best of 2"
+ }
+}

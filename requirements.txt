@@ -1,0 +1,9 @@
+# 运行依赖：全部为本机已安装包，新增体积 0 MB（远低于 20MB 约束）
+# 外部二进制：sox_ng 14.9 / r8brain-free / SSRC / ffmpeg（见 srctool/config.py 的发现顺序）
+numpy>=2.0
+scipy>=1.13
+soundfile>=0.12
+soxr>=0.5
+pillow>=10.0
+fastapi>=0.110
+uvicorn>=0.29
