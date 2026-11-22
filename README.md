@@ -17,8 +17,12 @@ python tests/selftest.py           # 12 项自检，演示素材会自动生成
 ```
 
 > 仓库只含源码与文档：引擎二进制（`*.exe`/`*.dll`）、第三方 FFTW 库与测试音频不入库，
-> 详见 [仓库说明](#仓库说明)。国内网络推送可走代理：
-> `git config http.proxy http://127.0.0.1:7897`（或 `HTTPS_PROXY` 环境变量）。
+> 详见 [仓库说明](#仓库说明)。
+>
+> **GitHub 与代理**：访问可走 `git config http.proxy http://127.0.0.1:7897`（或 `HTTPS_PROXY`）。
+> 但**推送大包时这条代理会返回 HTTP 408** —— 本机实测 2 MB 的 pack 上传被截断，
+> 报 `RPC failed; HTTP 408` 与 `unexpected disconnect while reading sideband packet`；
+> 去掉 `http.proxy` 直连即可推成功。必须走代理时改用 SSH（`git@github.com` + `~/.ssh/config` 的 ProxyCommand）。
 
 ![工作台](work/shots/workbench_1440.png)
 
