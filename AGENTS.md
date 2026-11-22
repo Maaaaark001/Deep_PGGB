@@ -198,6 +198,13 @@ r8brain/SSRC/SciPy/PGGB 在工具箱里没有增量绑定，标 n/a；r8brain �
 
 ## 6. 履历（倒序）
 
+### 2026-11-23 01:50 · src-toolchain skill 同步：原生流式、88.2 口径与 800 ms 上下文
+把 skill 的 Deep_PGGB 章节从旧口径（81×、400 ms、PGGB 镜像低 20 dB）更新到当前实测：
+117.7× / 800 ms、流式 33.9/54.2/74.8×（时延 1.30/1.80/2.80 s）、PGGB 镜像差 9.8 dB。
+新增 dpggb_stream_* C API、三块原生流式表、重建与回归命令；skill 内 deeppggb/bin 的
+dpggb.dll/exe、src 与 deeppggb_stream.py 已同步，根目录旧副本移除。验证：skill 内
+dp_smoke.py 16/16，2 s 单声道原生流式与离线路径均正常。
+
 ### 2026-11-23 01:35 · 流式状态下沉到 C++：54× 对 13.5×，并修掉 FFTW plan 竞态与泄漏
 用户问“dpggb 对音频流的支持能否做到 C++ 源码里，会不会比外挂补丁更快”（m00993）。做了，答案是**能，而且快 3.5–4.1×**。
 - 新 C API 在 `deeppggb/src/dpggb_dll.cpp`：`dpggb_stream_create/push/flush/latency/reset/destroy`。
