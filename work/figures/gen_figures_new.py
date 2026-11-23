@@ -84,7 +84,7 @@ def fig1_architecture():
     y, h, w = 58, 20, 14.0
     xs = [1.5, 18.0, 34.5, 51.0, 67.5, 84.0]
     labels = ["Input", "Block framing\n+ context", "rFFT\n(P bins)",
-              "Zero-pad to Q\n+ roll-off", "irFFT", "Overlap-add\n→ output"]
+              "Zero-pad to Q\n+ roll-off", "irFFT", "keep core\n→ output"]
     for x, t in zip(xs, labels):
         _box(a, x, y, w, h, t)
     for x in xs[:-1]:
@@ -143,10 +143,15 @@ def fig1_architecture():
 # ---------------------------------------------------------------------------
 def fig2_spectral():
     d = load("spectrum_data.json")
-    p = panel(placed_mm=W, height_mm=78)
+    p = panel(placed_mm=W, height_mm=132)
     apply_style(p)
-    fig, (a, b) = plt.subplots(1, 2, figsize=p.figsize,
-                               gridspec_kw={"wspace": 0.30, "width_ratios": [1.45, 1]})
+    fig = plt.figure(figsize=p.figsize)
+    gs = fig.add_gridspec(2, 2, width_ratios=[1.42, 1], height_ratios=[1.0, 0.92],
+                          wspace=0.30, hspace=0.46)
+    a = fig.add_subplot(gs[0, 0])
+    b = fig.add_subplot(gs[0, 1])
+    c = fig.add_subplot(gs[1, 0])
+    e = fig.add_subplot(gs[1, 1])
 
     a.plot(d["freq_khz"], d["mag_db"], lw=0.55, color=C["pggb"], zorder=3)
     a.set_xlim(0, 44.1)
@@ -178,8 +183,47 @@ def fig2_spectral():
                fontsize=7.2, color=INK,
                arrowprops=dict(arrowstyle="-", lw=0.6, color=MUTED))
 
-    panel_letter(a, "a", x=-0.11)
-    panel_letter(b, "b", x=-0.20)
+    # (c) where the three spectral readouts sit
+    c.set_xlim(0, 44.1)
+    c.set_ylim(-320, 12)
+    c.set_xticks([0, 10, 20, 30, 40])
+    c.set_yticks([-300, -200, -100, 0])
+    c.set_xlabel("Frequency (kHz)")
+    c.set_ylabel("Level (dBc)")
+    c.axhline(-300, color="#8a8a8a", ls=":", lw=0.7)
+    c.vlines(1.0, -300, -2, color=INK, lw=1.2)
+    c.vlines(3.2, -300, -250, color=C["dpggb"], lw=1.0)
+    c.vlines(14.1, -300, -245, color=C["ssrc"], lw=1.2)
+    c.vlines(43.1, -300, -270, color=C["r8b"], lw=1.6)
+    c.annotate("carrier", xy=(1.0, -2), xytext=(4.0, -55), fontsize=6.8,
+               color=INK, arrowprops=dict(arrowstyle="-", lw=0.5, color=MUTED))
+    c.annotate("spur", xy=(3.2, -250), xytext=(5.0, -165), fontsize=6.8,
+               color=C["dpggb"], arrowprops=dict(arrowstyle="-", lw=0.5, color=C["dpggb"]))
+    c.annotate("alias", xy=(14.1, -245), xytext=(13.0, -120), fontsize=6.8,
+               color=C["ssrc"], arrowprops=dict(arrowstyle="-", lw=0.5, color=C["ssrc"]))
+    c.annotate("image", xy=(43.1, -270), xytext=(31.0, -200), fontsize=6.8,
+               color=C["r8b"], arrowprops=dict(arrowstyle="-", lw=0.5, color=C["r8b"]))
+    c.text(2.0, -310, "floor", fontsize=6.2, color=MUTED, va="bottom")
+    clean_axes(c)
+
+    # (d) two-tone intermodulation products
+    cats = ["$f_1$\n19k", "$f_2$\n20k", "2$f_1$−$f_2$\n18k",
+            "2$f_2$−$f_1$\n21k", "$f_1$+$f_2$\n39k"]
+    vals = [0.80, 0.80, 0.26, 0.26, 0.20]
+    cols = [C["pggb"], C["pggb"], C["swr"], C["swr"], C["swr"]]
+    e.bar(range(len(vals)), vals, color=cols, width=0.62, edgecolor="white", lw=0.3)
+    e.set_ylim(0, 1.0)
+    e.set_xticks(range(len(vals)))
+    e.set_xticklabels(cats, fontsize=5.9)
+    e.set_yticks([])
+    e.set_ylabel("relative level")
+    e.tick_params(axis="x", length=0, pad=2)
+    clean_axes(e)
+
+    panel_letter(a, "a", x=-0.11, y=1.02)
+    panel_letter(b, "b", x=-0.20, y=1.02)
+    panel_letter(c, "c", x=-0.08, y=1.04)
+    panel_letter(e, "d", x=-0.08, y=1.04)
     landed_report(fig, p, verbose=False)
     save_all("fig2_spectral", fig)
     plt.close(fig)
@@ -217,7 +261,6 @@ def fig3_engines():
         for field, _lab, col, mk in metrics:
             v = e[field]
             if v is None:
-                a.scatter(-373, i, marker="x", s=22, color="#9a9a9a", lw=0.8, zorder=3)
                 continue
             a.scatter(v, i, marker=mk, s=24, facecolor=col, edgecolor="white",
                       linewidth=0.35, zorder=3)
@@ -397,7 +440,7 @@ def fig6_params():
     a.set_ylim(-390, -200)
     a.set_yticks([-200, -250, -300, -350])
     a.set_xticks(o)
-    a.set_xlabel("Taper continuity order")
+    a.set_xlabel("Taper window index")
     a.set_ylabel("Leakage at 22.05 kHz (dBc)")
     a.annotate("C5 used", xy=(5, -355.7), xytext=(3.2, -330),
                fontsize=7.4, color=INK,
@@ -546,7 +589,7 @@ def fig8_stream_bench():
     off = d["meta"]["offline_speed_x"].get("dpggb")
     if off:
         b.axvline(off, color="#8a8a8a", ls=":", lw=0.8)
-        b.text(off * 1.03, 6.0, "offline\n%.1f×" % off, fontsize=6.2,
+        b.text(off * 1.03, 6.0, "offline\n%.0f×" % off, fontsize=6.2,
                color=MUTED, ha="left", va="top")
     b.set_xscale("log")
     b.set_xlim(4, 1000)
@@ -569,6 +612,103 @@ def fig8_stream_bench():
     plt.close(fig)
 
 
+def fig9_blocks():
+    d = load("engine_music_8ch.json")
+    p = panel(placed_mm=W, height_mm=128)
+    apply_style(p)
+    fig = plt.figure(figsize=p.figsize)
+    gs = fig.add_gridspec(2, 3, height_ratios=[0.90, 1.08], hspace=0.34, wspace=0.26)
+    a = fig.add_subplot(gs[0, 0])
+    b = fig.add_subplot(gs[0, 1])
+    c = fig.add_subplot(gs[0, 2])
+    q = fig.add_subplot(gs[1, :])
+    for ax in (a, b, c):
+        ax.set_xlim(0, 100)
+        ax.set_ylim(0, 100)
+        ax.axis("off")
+
+    # (a) one call over the whole file
+    a.add_patch(plt.Rectangle((6, 62), 88, 12, facecolor="#dbe7f3",
+                              edgecolor="#9db4cc", lw=0.6))
+    a.text(50, 68, "whole input, 120 s", ha="center", va="center", fontsize=7.2)
+    _arrow(a, (50, 61), (50, 47))
+    _box(a, 26, 30, 48, 16, "one conversion\n(no block seam)", fc="#f6e8d5", ec="#d8bd97", fs=7.2)
+    _arrow(a, (50, 29), (50, 15))
+    a.add_patch(plt.Rectangle((6, 3), 88, 11, facecolor="#e8f0e8",
+                              edgecolor="#9dbb9d", lw=0.6))
+    a.text(50, 8.5, "$y_{ref}$: reference", ha="center", va="center", fontsize=7.2)
+    a.text(50, 93, "whole-file", ha="center", fontsize=8.0, color=INK)
+    panel_letter(a, "a", x=-0.10, y=1.02)
+
+    # (b) engine-internal blocks with context
+    for k in range(2):
+        x0 = 6 + k * 47
+        b.add_patch(plt.Rectangle((x0, 56), 8, 14, facecolor="#dbe7f3",
+                                  edgecolor="#9db4cc", lw=0.5))
+        b.add_patch(plt.Rectangle((x0 + 8, 56), 31, 14, facecolor="#8fb8de",
+                                  edgecolor="#5f86ad", lw=0.5))
+        b.add_patch(plt.Rectangle((x0 + 39, 56), 8, 14, facecolor="#dbe7f3",
+                                  edgecolor="#9db4cc", lw=0.5))
+        _arrow(b, (x0 + 23, 55), (x0 + 23, 38))
+        b.add_patch(plt.Rectangle((x0, 27), 47, 10, facecolor="#e8f0e8",
+                                  edgecolor="#9dbb9d", lw=0.5))
+    b.text(6, 76, "800 ms ctx", fontsize=5.8, color="#33506e")
+    b.text(20, 63, "core 16 s", ha="center", va="center", fontsize=6.2, color="white")
+    b.text(6, 20, "only cores are written", fontsize=6.4, color=MUTED)
+    b.text(50, 93, "engine-internal", ha="center", fontsize=8.0, color=INK)
+    panel_letter(b, "b", x=-0.10, y=1.02)
+
+    # (c) independent segment splicing
+    for k in range(3):
+        x0 = 6 + k * 31
+        c.add_patch(plt.Rectangle((x0, 56), 24, 14, facecolor="#8fb8de",
+                                  edgecolor="#5f86ad", lw=0.5))
+        c.text(x0 + 12, 63, "16 s", ha="center", va="center", fontsize=6.2, color="white")
+        _arrow(c, (x0 + 12, 55), (x0 + 12, 38))
+        c.add_patch(plt.Rectangle((x0, 27), 24, 10, facecolor="#e8f0e8",
+                                  edgecolor="#9dbb9d", lw=0.5))
+    for x in (30.5, 61.5):
+        c.plot([x, x], [22, 52], color=C["dpggb"], lw=0.9, ls=(0, (3, 2)))
+    c.text(50, 93, "independent splice", ha="center", fontsize=8.0, color=INK)
+    panel_letter(c, "c", x=-0.10, y=1.02)
+
+    # (d) measured chunk-vs-whole null depth on real music
+    eng = d["engines"]
+    rows = [
+        ("Deep_PGGB, engine-internal", float(eng["dpggb"]["native16_null"]["min"]), C["dpggb"], "o"),
+        ("Deep_PGGB, independent splice", float(eng["dpggb"]["chunk16_null"]["min"]), C["dpggb"], "s"),
+        ("PGGB", float(eng["pggb"]["chunk16_null"]["min"]), C["pggb"], "o"),
+        ("r8brain-free", float(eng["r8b"]["chunk16_null"]["min"]), C["r8b"], "o"),
+        ("sox_ng rate", float(eng["soxng"]["chunk16_null"]["min"]), C["soxng"], "o"),
+        ("libsoxr", float(eng["soxr"]["chunk16_null"]["min"]), C["soxr"], "o"),
+        ("FFmpeg aresample", float(eng["swr"]["chunk16_null"]["min"]), C["swr"], "o"),
+        ("SSRC / Shibatch", float(eng["ssrc"]["chunk16_null"]["min"]), C["ssrc"], "o"),
+        ("SciPy resample_poly", float(eng["scipy"]["chunk16_null"]["min"]), C["scipy"], "o"),
+    ]
+    ys = np.arange(len(rows))
+    for y, (lab, val, col, mk) in zip(ys, rows):
+        q.plot([0, val], [y, y], color="#d0d0d0", lw=0.7, zorder=1)
+        q.plot([val], [y], marker=mk, ms=4.4, color=col, mec="white", mew=0.4, zorder=3)
+    q.set_yticks(ys)
+    q.set_yticklabels([r[0] for r in rows])
+    q.invert_yaxis()
+    q.set_xlim(0, 190)
+    q.set_xticks([0, 50, 100, 150])
+    q.set_xlabel("Chunk-vs-whole null depth (dB)")
+    q.axvline(146, color="#8a8a8a", ls=":", lw=0.8)
+    q.text(148, 0.2, "24-bit SNR", fontsize=6.2, color=MUTED, va="top")
+    q.annotate("175.2", xy=(175.2, 0.0), xytext=(178, 0.35), fontsize=6.4,
+               color=C["dpggb"], va="center")
+    q.annotate("30.2", xy=(30.2, 1.0), xytext=(34, 1.35), fontsize=6.4,
+               color=C["dpggb"], va="center")
+    q.grid(axis="x", ls="--", lw=0.35, alpha=0.35)
+    clean_axes(q)
+
+    landed_report(fig, p, verbose=False)
+    save_all("fig9_blocks", fig)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     fig1_architecture()
     fig2_spectral()
@@ -578,5 +718,6 @@ if __name__ == "__main__":
     fig6_params()
     fig7_streaming()
     fig8_stream_bench()
+    fig9_blocks()
     print("ALL FIGURES DONE")
 

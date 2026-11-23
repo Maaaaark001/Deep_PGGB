@@ -22,9 +22,15 @@ work/paper/preview*/
 work/paper/pv*/
 work/paper/archive/
 
-# ---- 论文中间产物：保留构建脚本、blocks.json 与最终 docx ----
+# ---- 论文中间产物：保留构建脚本、blocks.json、最终 docx 与最终 PDF ----
 work/paper/*.pdf
+!work/paper/Deep_PGGB_paper.pdf
 work/paper/*.png
+work/paper/pages*/
+work/paper/v*_pages/
+work/paper/*_contact.png
+work/paper/crop_*.png
+work/paper/py_raw.docx
 work/paper/qa*.sh
 work/paper/qa[0-9]*.py
 work/paper/final*.sh
@@ -36,6 +42,11 @@ work/paper/inspect.sh
 work/paper/pdf*.sh
 work/paper/urlcheck.sh
 work/paper/verify_png.sh
+
+# ---- 本地素材与运行期临时目录 ----
+music/
+work/dec_*/
+work/uploads/
 
 # ---- 杂项 ----
 cache/

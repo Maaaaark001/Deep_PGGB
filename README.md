@@ -13,11 +13,11 @@ git clone https://github.com/Maaaaark001/Deep_PGGB.git sonarsrc
 cd sonarsrc
 pip install -r requirements.txt
 python app.py --port 8099          # 打开 http://127.0.0.1:8099
-python tests/selftest.py           # 12 项自检，演示素材会自动生成
+python tests/selftest.py           # 13 项自检，演示素材会自动生成
 ```
 
-> 仓库只含源码与文档：引擎二进制（`*.exe`/`*.dll`）、第三方 FFTW 库与测试音频不入库，
-> 详见 [仓库说明](#仓库说明)。
+> 仓库含源码、文档、论文成品（docx + pdf）与可复现的测量数据；引擎二进制（`*.exe`/`*.dll`）、
+> 第三方 FFTW 库、测试音频与排版预览帧不入库，详见 [仓库说明](#仓库说明)。
 >
 > **GitHub 与代理**：访问可走 `git config http.proxy http://127.0.0.1:7897`（或 `HTTPS_PROXY`）。
 > 但**推送大包时这条代理会返回 HTTP 408** —— 本机实测 2 MB 的 pack 上传被截断，
@@ -212,6 +212,41 @@ Deep_PGGB 的分块长度/并行工作数/内存上限/首尾渐变/分块上下
 
 ---
 
+## 论文与复现
+
+**《任意有理倍率的分块频域重采样方法——误差分解、流式扩展与八引擎对照》**
+21 页 / 9 图 / 6 表 / 25 条参考文献。
+
+- [论文 docx](work/paper/Deep_PGGB_paper.docx) · [论文 pdf](work/paper/Deep_PGGB_paper.pdf)
+- [学术评审](work/paper/REVIEW_academic.md) · [写作评审](work/paper/REVIEW_writing.md) · [闭环修改记录](work/paper/REVIEW_closed_loop.md)
+
+论文把“频域补零”当作经典方法处理，贡献放在**误差分解、测量协议、分块与流式扩展**：
+
+- §2.5 给出整段处理、分块处理、核心区、上下文、引擎内分块、独立分段拼接、整相位、零差等术语；
+- 式 (4)–(12) 给出增益精修、零差、音乐分块-整段零差、杂散、镜像、混叠、CCIF、SMPTE、多音的完整定义；
+- 九种倍率的零差为 300.9–303.8 dB，PGGB 在 44.1→176.4 上为 302.0 dB；
+- 八引擎对照中前五台贴 float64 地板，有区分力的是 r8brain、sox_ng、SSRC、SciPy；
+- 2 分钟真实音乐上，Deep_PGGB 引擎内分块为 175.2 dB，独立拼接只有 30.2 dB；其余七台为 41.3–91.6 dB；
+- 8 声道合成 303.9–305.8 dB，吞吐 28.2×；2 分钟音乐吞吐 135×。
+
+复现入口：
+
+```bash
+python work/figures/gen_figures_new.py        # 9 张图：PNG/PDF/SVG
+python deeppggb/dp_engine_music_8ch.py        # 表 6 的音乐 / 8 ch 跨引擎数据
+python deeppggb/dp_speed_ci.py                 # 吞吐的 95% bootstrap CI
+bash work/paper/merge.sh                       # 分段稿合并为 blocks.json
+python work/paper/build_docx.py                # python-docx 渲染 py_raw.docx
+python work/paper/embed_figures.py work/paper/py_raw.docx work/paper/Deep_PGGB_paper.docx work/figures/png
+python work/paper/qa_docx.py                   # 结构校验
+```
+
+> 论文里的音乐基准使用本地 `music/Pixabay.mp3`，该文件不入库；完整复现表 6 需先准备该文件
+> （2 分钟、44.1 kHz 立体声）。合成音与 8 ch 部分由 `deeppggb/dp_multichannel.py` 单独生成。
+> 完整构建链与常见坑见 `AGENTS.md` 的 D8。
+
+---
+
 ## 支持的格式
 
 **输入**：wav / flac / aiff / caf / w64 / au / mp3 / ogg / opus / m4a(aac/alac) / wv / tta / dsf / ape …
@@ -282,17 +317,19 @@ python tests/selftest.py
 
 ## 仓库说明
 
-仓库**只提交源码、文档与论文成品**，二进制与中间件由 `.gitignore` 排除：
+仓库**只提交源码、文档、测量数据与论文成品**，二进制、本地素材与排版中间件由 `.gitignore` 排除：
 
 | 排除项 | 原因 | 如何获得 |
 |---|---|---|
 | `*.exe` / `*.dll` / `deeppggb/third_party/` | FFTW 与自研二进制约 14 MB，可重建 | `bash deeppggb/build.sh`（需 MSYS2 UCRT64） |
-| `*.univer` / `work/paper/*.pdf` / 预览帧 | 论文排版的中间件 | 由 `work/paper/build.sh` + `build_docx.py` 重新生成 |
-| `*.wav` / `*.flac` / `*.npy` | 测试音频可合成 | `work/paper/build.sh` 与 `tests/selftest.py` 自行生成 |
+| `*.univer` / `work/paper/pages*/` / `v*_pages/` / `*_contact.png` / `crop_*.png` / `py_raw.docx` | 论文排版的预览帧与中间 docx | 由 `build_docx.py` + `embed_figures.py` 重新生成 |
+| `work/paper/Deep_PGGB_paper_v*.pdf` | 历史版本，最终 PDF 保留 | 只保留 `Deep_PGGB_paper.pdf` |
+| `*.wav` / `*.flac` / `*.npy` / `music/` | 测试音频可合成；音乐样本仅本地 | `tests/selftest.py` 自行生成；音乐基准需自备 `music/Pixabay.mp3` |
 | `cache/` | 运行时缓存 | 自动重建 |
 
 保留：`srctool/`、`deeppggb/*.py` 与 `src/`、`tests/`、`work/paper/*.py|*.sh|blocks.json`、
-`work/figures/`（PDF+SVG+PNG 三套）、`work/paper/Deep_PGGB_paper.docx`、`work/*.json` 测量数据。
+`work/figures/`（PDF+SVG+PNG 三套）、`work/paper/Deep_PGGB_paper.docx`、
+`work/paper/Deep_PGGB_paper.pdf`、`work/*.json` 测量数据。
 
 ## 许可与致谢
 

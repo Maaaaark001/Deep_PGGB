@@ -78,17 +78,38 @@ def para(doc, text, *, east=SONG, size=10.5, bold=False, align=None,
     return p
 
 
-def add_rich(p, text, east, size, bold=False):
-    """写入文字，并把 **…** 变成粗体 run。
+TOKEN_RE = re.compile(r"(\*\*.+?\*\*|_\{[^{}]*\}|\^\{[^{}]*\})")
 
-    源文（blocks.json）用 markdown 的星号标重点；Univer 的渲染器不解析它，
-    所以早期版本靠“正文里不许出现 **”这条规矩回避。这里直接解析，
-    既保留强调，又不会在 Word 里显示出星号。
+
+def add_rich(p, text, east, size, bold=False, italic=False):
+    """写入文字，解析 **粗体**、_{下标} 与 ^{上标} 三种行内标记。
+
+    早期版本只解析星号，公式只能写成 f_s、2^a 这样的源码形式，
+    在 Word 里既不像论文，也容易被读成程序变量。这里把三种标记
+    统一渲染为 run 属性，表格与公式行也走同一条路径。
     """
-    for i, seg in enumerate(re.split(r"\*\*(.+?)\*\*", text)):
+    for seg in TOKEN_RE.split(text):
         if not seg:
             continue
-        cjk(p.add_run(seg), east, size, bold or (i % 2 == 1))
+        sub = sup = False
+        bold_seg = False
+        if seg.startswith("**") and seg.endswith("**") and len(seg) > 4:
+            seg = seg[2:-2]
+            bold_seg = True
+        elif seg.startswith("_{") and seg.endswith("}"):
+            seg = seg[2:-1]
+            sub = True
+        elif seg.startswith("^{") and seg.endswith("}"):
+            seg = seg[2:-1]
+            sup = True
+        run = p.add_run(seg)
+        cjk(run, east, size, bold or bold_seg)
+        if sub:
+            run.font.subscript = True
+        if sup:
+            run.font.superscript = True
+        if italic:
+            run.font.italic = True
 
 
 def borders(table, sz=4, color="A6A6A6"):
@@ -104,7 +125,7 @@ def borders(table, sz=4, color="A6A6A6"):
     tblpr.append(bd)
 
 
-def cell_margins(table, top=45, bottom=45, left=135, right=135):
+def cell_margins(table, top=28, bottom=28, left=135, right=135):
     tblpr = table._tbl.tblPr
     mar = OxmlElement("w:tblCellMar")
     for tag, val in (("top", top), ("left", left), ("bottom", bottom), ("right", right)):
@@ -115,13 +136,13 @@ def cell_margins(table, top=45, bottom=45, left=135, right=135):
     tblpr.append(mar)
 
 
-def add_table(doc, rows, widths=None, header=1):
+def add_table(doc, rows, widths=None, header=1, fs=8.3, pad=(28, 28, 135, 135)):
     ncol = len(rows[0])
     t = doc.add_table(rows=len(rows), cols=ncol)
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
     t.autofit = False
     borders(t)
-    cell_margins(t)
+    cell_margins(t, pad[0], pad[1], pad[2], pad[3])
     if widths:
         k = TEXT_W_TWIPS / float(sum(widths))
         colw = [int(w * k) for w in widths]
@@ -158,7 +179,19 @@ def add_table(doc, rows, widths=None, header=1):
             pf.space_after = Pt(0)
             pf.line_spacing = 1.0
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER if (r < header or c > 0) else WD_ALIGN_PARAGRAPH.LEFT
-            cjk(p.add_run(str(txt)), SONG, 8.5, bold=(r < header))
+            add_rich(p, str(txt), SONG, fs, bold=(r < header))
+            if r < header:
+                tcpr = cell._tc.get_or_add_tcPr()
+                shd = OxmlElement("w:shd")
+                shd.set(qn("w:val"), "clear")
+                shd.set(qn("w:color"), "auto")
+                shd.set(qn("w:fill"), "F2F2F2")
+                tcpr.append(shd)
+    # Keep a table on one page: every row but the last asks Word to stay with the next.
+    for r in range(len(rows) - 1):
+        for c in range(ncol):
+            for cell_p in t.cell(r, c).paragraphs:
+                cell_p.paragraph_format.keep_with_next = True
     return t
 
 
@@ -225,14 +258,56 @@ def main():
         elif kind == "table":
             if b.get("cap"):
                 para(doc, b["cap"], size=9, align=WD_ALIGN_PARAGRAPH.CENTER,
-                     before=6, after=4, line=1.15, keep_next=True)
-            add_table(doc, b["rows"], b.get("widths"), b.get("header", 1))
+                     before=6, after=4, line=1.15, keep_next=True,
+                     page_break=pending_break)
+            elif pending_break:
+                para(doc, "", size=1, page_break=True)
+            pending_break = False
+            add_table(doc, b["rows"], b.get("widths"), b.get("header", 1),
+                      b.get("fs", 8.3), tuple(b.get("pad", (28, 28, 135, 135))))
             stats["tables"] += 1
             para(doc, "", size=9, line=1.0, after=6)
+        elif kind == "author":
+            para(doc, b["x"], size=11.5, align=WD_ALIGN_PARAGRAPH.CENTER,
+                 before=2, after=1, line=1.2)
+        elif kind == "affil":
+            para(doc, b["x"], size=9.5, align=WD_ALIGN_PARAGRAPH.CENTER,
+                 before=0, after=1, line=1.2)
+        elif kind == "corr":
+            para(doc, b["x"], size=9, align=WD_ALIGN_PARAGRAPH.CENTER,
+                 before=0, after=1, line=1.2)
+        elif kind == "date":
+            para(doc, b["x"], size=9, align=WD_ALIGN_PARAGRAPH.CENTER,
+                 before=0, after=8, line=1.2)
+        elif kind == "en_author":
+            para(doc, b["x"], size=11, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER,
+                 before=12, after=1, line=1.2)
+        elif kind == "en_affil":
+            para(doc, b["x"], size=9.5, align=WD_ALIGN_PARAGRAPH.CENTER,
+                 before=0, after=8, line=1.2)
+        elif kind == "meta":
+            para(doc, b["x"], size=9.5, align=WD_ALIGN_PARAGRAPH.LEFT,
+                 before=0, after=2, line=1.2)
+        elif kind == "en_title":
+            para(doc, b["x"], size=12, bold=True,
+                 align=WD_ALIGN_PARAGRAPH.CENTER, before=10, after=2, line=1.2)
+        elif kind == "en_sub":
+            para(doc, b["x"], size=10.5, bold=True,
+                 align=WD_ALIGN_PARAGRAPH.CENTER, before=0, after=8, line=1.2)
+        elif kind == "en_body":
+            para(doc, b["x"], size=9.5, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                 before=0, after=2, line=1.25)
+        elif kind == "en_kw":
+            para(doc, b["x"], size=9.5, align=WD_ALIGN_PARAGRAPH.JUSTIFY,
+                 before=0, after=14, line=1.25)
         elif kind == "title":
             para(doc, b["x"], east=HEI, size=16, bold=True,
-                 align=WD_ALIGN_PARAGRAPH.CENTER, after=14, line=1.25,
+                 align=WD_ALIGN_PARAGRAPH.CENTER, after=2, line=1.25,
                  page_break=pending_break, style="Title")
+            stats["heads"] += 1
+        elif kind == "subtitle":
+            para(doc, b["x"], east=HEI, size=12, bold=True,
+                 align=WD_ALIGN_PARAGRAPH.CENTER, before=0, after=12, line=1.2)
             stats["heads"] += 1
         elif kind in ("h1", "h2", "h3"):
             size, before, after = {"h1": (13, 16, 7), "h2": (11.5, 11, 5),
@@ -253,7 +328,10 @@ def main():
             pf.first_line_indent = Pt(0)
             pf.tab_stops.add_tab_stop(Pt(225.5), WD_TAB_ALIGNMENT.CENTER)
             pf.tab_stops.add_tab_stop(Pt(451), WD_TAB_ALIGNMENT.RIGHT)
-            run = p.add_run("\t" + b["x"] + "\t(" + str(b.get("n", 1)) + ")")
+            run = p.add_run("\t")
+            cjk(run, SONG, 10.5)
+            add_rich(p, b["x"], SONG, 10.5, italic=True)
+            run = p.add_run("\t(" + str(b.get("n", 1)) + ")")
             cjk(run, SONG, 10.5)
         elif kind == "ref":
             para(doc, b["x"], size=8.5, before=0, after=0, line=1.10,
@@ -263,9 +341,9 @@ def main():
                  after=0, line=1.5, indent_chars=2, page_break=pending_break)
         pending_break = False
 
-    doc.core_properties.title = "精确有理倍率下的分块频域重采样：数值保真度、流式扩展与八引擎对照"
-    doc.core_properties.author = "SonarSRC 项目组"
-    doc.core_properties.subject = "分块频域重采样；数值保真度；流式处理"
+    doc.core_properties.title = "任意有理倍率的分块频域重采样方法：误差分解、流式扩展与八引擎对照"
+    doc.core_properties.author = "Maaaaark"
+    doc.core_properties.subject = "分块频域重采样；误差分解；零差测量；流式处理"
     doc.core_properties.keywords = "sample rate conversion; spectral zero-padding; null test; streaming"
     doc.save(OUT)
     _declare_drawing_ns(OUT)
