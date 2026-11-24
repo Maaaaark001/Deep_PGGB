@@ -485,6 +485,12 @@ def page_workbench() -> None:
                                        hint="19k+20k 双音，CCIF")
                                 C.tile("多音", f"{sm.get('mt_dbc', 0):.1f}", "dBc",
                                        hint="24 音 100 Hz–18 kHz")
+                                C.tile("SINAD", f"{sm.get('sinad_dbc', -300):.1f}", "dBc",
+                                       hint="基频 / 全部残余（谐波+杂散+镜像+噪声）")
+                                C.tile("SFDR", f"{sm.get('sfdr_dbc', -300):.1f}", "dBc",
+                                       hint="最坏一根谱线，除直流与基频 ±1 bin")
+                                C.tile("ENOB", f"{sm.get('enob_bits', 0):.1f}", "bit",
+                                       hint="按 SINAD 折算到满刻度正弦，双精度上限约 52 bit")
                                 C.tile("21.5 kHz", f"{sm.get('passband_21500', 0):+.2f}", "dB")
                                 C.tile("速度", f"{sm.get('speed_x', 0):.0f}", "×")
 
@@ -643,8 +649,9 @@ def page_engines() -> None:
             for m in ms:
                 if not m.ok:
                     rows.append({"engine": m.label, "spur": "—", "image": "—", "alias": "—",
-                                 "imd": "—", "mt": "—",
-                                 "pb215": "—", "pb220": "—", "speed": "—", "note": m.error or ""})
+                                 "imd": "—", "mt": "—", "sinad": "—", "sfdr": "—",
+                                 "enob": "—", "pb215": "—", "pb220": "—", "speed": "—",
+                                 "note": m.error or ""})
                     continue
                 rows.append({
                     "engine": m.label,
@@ -654,6 +661,9 @@ def page_engines() -> None:
                     "alias": "n/a" if m.alias_na else f"{m.alias_dbc:.1f}",
                     "imd": f"{m.imd_dbc:.1f}",
                     "mt": f"{m.mt_dbc:.1f}",
+                    "sinad": f"{m.sinad_dbc:.1f}",
+                    "sfdr": f"{m.sfdr_dbc:.1f}",
+                    "enob": f"{m.enob_bits:.1f}",
                     "pb215": f"{m.passband_21500:+.2f}",
                     "pb220": f"{m.passband_22000:+.2f}",
                     "speed": f"{m.speed_x:.0f}×",
@@ -681,6 +691,9 @@ def page_engines() -> None:
                             {"name": "alias", "label": "混叠 dBc", "field": "alias", "align": "right"},
                             {"name": "imd", "label": "互调 dBc", "field": "imd", "align": "right"},
                             {"name": "mt", "label": "多音 dBc", "field": "mt", "align": "right"},
+                            {"name": "sinad", "label": "SINAD dBc", "field": "sinad", "align": "right"},
+                            {"name": "sfdr", "label": "SFDR dBc", "field": "sfdr", "align": "right"},
+                            {"name": "enob", "label": "ENOB bit", "field": "enob", "align": "right"},
                             {"name": "pb215", "label": "21.5k dB", "field": "pb215", "align": "right"},
                             {"name": "pb220", "label": "22k dB", "field": "pb220", "align": "right"},
                             {"name": "speed", "label": "速度", "field": "speed", "align": "right"},

@@ -283,6 +283,29 @@ def test_floors() -> str:
     return f"spur_resid={spur_resid:.1f} spur_bin={spur_bin:.1f} multi={multi:.1f}"
 
 
+# SINAD / SFDR / ENOB 的口径自检：注入已知电平的单根杂散，读数必须落在解析值上，
+# 且 ENOB 必须等于 (SINAD_FS − 1.76)/6.02。这条防的是"把扣 bin 法误当 SINAD"——
+# 那种做法在 −300 dB 附近地板与被测对象同量级，读数会假性偏低 20 dB 以上。
+def test_sinad() -> str:
+    from srctool import metrics as M
+    import numpy as np
+    dst, n, k = 88200, 88200, 1000
+    m = (np.arange(n, dtype=np.int64) * k) % n
+    th = m * (2 * np.pi / n)
+    base = 0.5 * np.sin(th)
+    for spur_db in (-60.0, -100.0, -140.0):
+        a2 = 0.5 * 10 ** (spur_db / 20.0)
+        y = base + a2 * np.sin(3 * th)
+        r = M.tone_sinad(y, dst, 1000.0)
+        want = -spur_db
+        assert abs(r["sinad_db"] - want) < 0.2, f"杂散 {spur_db} dB：SINAD {r['sinad_db']:.2f}"
+        assert abs(r["sfdr_db"] - want) < 0.2, f"杂散 {spur_db} dB：SFDR {r['sfdr_db']:.2f}"
+        assert abs(r["enob_bits"] - ((want + 6.02 - 1.76) / 6.02)) < 0.05, "ENOB 折算错"
+    r = M.tone_sinad(base, dst, 1000.0)
+    assert r["sinad_db"] > 290.0, f"理想音的地板漂移: {r['sinad_db']:.1f}"
+    return f"spur -60/-100/-140 dBc 读数一致；理想音 SINAD {r['sinad_db']:.1f} dBc"
+
+
 def test_presets() -> str:
     for p in presets.PRESETS:
         assert p.engine in engines.ENGINES, (p.key, p.engine)
@@ -326,6 +349,7 @@ def main() -> int:
 
     section("7b. 测量地板")
     check("解析地板可复现（杂散/多音口径钉死）", test_floors)
+    check("SINAD/SFDR/ENOB 口径（注入已知杂散）", test_sinad)
 
     section("8. 预设与百科")
     check("预设引用的引擎/格式/参数都存在", test_presets)

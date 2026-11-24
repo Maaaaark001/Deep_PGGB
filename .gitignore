@@ -58,3 +58,4 @@ work/cleanup.sh
 *.log
 *.tmp
 .DS_Store
+work/cache_basis_*.npz

@@ -583,3 +583,96 @@ def diff_metrics(a: np.ndarray, b: np.ndarray, rate: int) -> dict:
         if x.size > 1 and np.std(x) > 0 and np.std(y) > 0 else 1.0,
         "rate": rate,
     }
+
+# --------------------------------------------------------------------------
+# 单音 SINAD / SFDR / ENOB
+# --------------------------------------------------------------------------
+def tone_sinad(seg, rate: int, freq: float, *, harmonics: int = 20,
+               inband_hz: float = 20000.0, refine: int = 2) -> dict:
+    """单根正弦的 SINAD / SFDR / ENOB / THD / SNR（dB，ENOB 为 bit）。
+
+    为什么不用"扣掉基频 bin 的残余能量"：输出是 float64，0.5 幅度正弦的量化步长
+    本身就在 −320 dBc；rFFT 的基函数只有 1e-16 的相对精度，多项式求和又在 √N·ε
+    量级，扣 bin 法的地板落在 −290…−307 dBc —— 与被测引擎同量级。这里改成残差法：
+
+      1. 基函数用整数相位 θ_n = 2π·((k·n) mod N)/N（k = f·N/fs 必须是整数），
+         相位没有累积误差；窗长不是整数周期时先把尾巴裁掉；
+      2. 投影用 math.sumprod（内部双倍长累加），幅度误差降到 ~1e-19；
+      3. 减掉 c + a·cosθ + b·sinθ 后对残差再投影一次，扣掉模型自身的舍入。
+
+    本函数的地板约 −300 dB（受 float64 基函数限制）；论文里 −300 dB 附近的读数用
+    60 位有效数字的基函数另算（deeppggb/dp_sinad.py，地板 −328 dB）。
+
+    定义与论文式 (13)–(15) 一致：SINAD 的分母是残差的全带功率；SFDR 只看最坏一根
+    谱线（除直流与基频 ±1 bin）；ENOB = (SINAD_FS − 1.76)/6.02，SINAD_FS 把测试音
+    折算到满刻度正弦（峰值 1.0），测试音 0.5 满量程时加 6.02 dB。
+    """
+    x = np.asarray(seg, dtype=np.float64).ravel()
+    bad = {"sinad_db": -300.0, "sinad_inband_db": -300.0, "sfdr_db": -300.0,
+           "enob_bits": 0.0, "enob_inband_bits": 0.0, "thd_db": -300.0,
+           "snr_db": -300.0, "spur_hz": 0.0, "ok": False}
+    n = x.size
+    if n < 64 or rate <= 0:
+        return bad
+    kk = freq * n / rate
+    k = int(round(kk))
+    if k < 2:
+        return bad
+    if abs(kk - k) > 1e-9:                      # 不满足整数周期：裁成整数个周期
+        n = int(k * rate / freq)
+        x = x[:n]
+        kk = freq * n / rate
+        k = int(round(kk))
+    m = (np.arange(n, dtype=np.int64) * k) % n
+    ang = m.astype(np.float64) * (2.0 * math.pi / n)
+    c = np.cos(ang)
+    s = np.sin(ang)
+
+    def project(v):
+        return (math.fsum(v) / n,
+                2.0 * math.sumprod(v, c) / n,
+                2.0 * math.sumprod(v, s) / n)
+
+    d, a, b = project(x)
+    res = x - (d + a * c + b * s)
+    for _ in range(int(refine)):
+        dd, da, db = project(res)
+        d, a, b = d + dd, a + da, b + db
+        res = res - (dd + da * c + db * s)
+
+    p_sig = 0.5 * (a * a + b * b)
+    p_res = max(float(math.sumprod(res, res)) / n, 1e-300)
+    amp = math.sqrt(2.0 * p_sig)
+
+    spec = np.abs(np.fft.rfft(res)) * (2.0 / n)
+    freqs = np.fft.rfftfreq(n, 1.0 / rate)
+    keep = np.ones(spec.size, bool)
+    keep[:3] = False
+    keep[max(0, k - 1): k + 2] = False
+    idx = np.flatnonzero(keep)
+    a_spur = float(spec[idx].max()) if idx.size else 0.0
+
+    hmask = np.zeros(spec.size, bool)
+    for h in range(2, harmonics + 2):
+        hk = h * k
+        if hk >= spec.size:
+            break
+        hmask[max(0, hk - 1): hk + 2] = True
+    p_harm = float(np.sum(spec[hmask] ** 2) / 2.0)
+    inband = freqs <= inband_hz
+    p_in = float(np.sum(spec[inband] ** 2) / 2.0)
+    sinad = 10.0 * math.log10(p_sig / p_res)
+    sinad_in = 10.0 * math.log10(p_sig / max(p_in, 1e-300))
+    fs_gain = 20.0 * math.log10(1.0 / max(amp, 1e-300))
+
+    return {
+        "sinad_db": sinad,
+        "sinad_inband_db": sinad_in,
+        "sfdr_db": 20.0 * math.log10(max(amp, 1e-300) / max(a_spur, 1e-300)),
+        "enob_bits": (sinad + fs_gain - 1.76) / 6.02,
+        "enob_inband_bits": (sinad_in + fs_gain - 1.76) / 6.02,
+        "thd_db": 10.0 * math.log10(max(p_harm, 1e-300) / p_sig),
+        "snr_db": 10.0 * math.log10(max(p_res - p_harm, 1e-300) / p_sig),
+        "spur_hz": float(freqs[int(np.argmax(spec[idx]))]) if idx.size else 0.0,
+        "ok": True,
+    }

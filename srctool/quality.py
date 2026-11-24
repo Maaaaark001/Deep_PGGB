@@ -24,7 +24,7 @@ from dataclasses import dataclass, asdict, field
 
 import numpy as np
 
-from . import config, engines
+from . import config, engines, metrics
 
 EPS = 1e-20
 
@@ -229,6 +229,11 @@ class SrcMeasurement:
     imd_hz: float = 0.0
     imd_smpte_dbc: float = -300.0    # SMPTE 双音 60 Hz+7 kHz 的最差边带
     mt_dbc: float = -300.0           # 24 音多音残余（相对音的总能量）
+    sinad_dbc: float = -300.0        # 单音 SINAD：基频功率 / 残差全带功率
+    sinad_inband_dbc: float = -300.0 # 同上，只算 20 Hz–20 kHz
+    sfdr_dbc: float = -300.0         # 最坏一根谱线（除直流与基频 ±1 bin）
+    enob_bits: float = 0.0           # (SINAD_FS − 1.76)/6.02，折算到满刻度正弦
+    enob_inband_bits: float = 0.0
     passband_21500: float = -300.0
     passband_22000: float = -300.0
     speed_x: float = 0.0
@@ -314,6 +319,18 @@ def measure_engine(engine: str, opts: dict | None = None, *, fund: float = 1000.
         m.spur_dbc = _median([_tone_residual(g, up_dst, [fund])[0]
                               for g in _segs(y, up_dst, windows)])
         m.spur_hz = fund
+
+        # --- 单音 SINAD / SFDR / ENOB ------------------------------------
+        # 与杂散同源（同一段 1 kHz 输出、同一批分析窗），但读的是"全部残余"：
+        # 分母是残差的全带功率（Parseval 等价），谐波、杂散、镜像与宽带噪声都进来。
+        # 这几项不进论文的"五项地板"表，它们是 ADC 测试的口径，用来把同一批输出
+        # 换算成 ENOB —— 双精度 53 位有效数字的上限约 52 bit。
+        tq = [metrics.tone_sinad(g, up_dst, fund) for g in _segs(y, up_dst, windows)]
+        m.sinad_dbc = _median([t["sinad_db"] for t in tq])
+        m.sinad_inband_dbc = _median([t["sinad_inband_db"] for t in tq])
+        m.sfdr_dbc = _median([t["sfdr_db"] for t in tq])
+        m.enob_bits = _median([t["enob_bits"] for t in tq])
+        m.enob_inband_bits = _median([t["enob_inband_bits"] for t in tq])
 
         # --- 镜像 -------------------------------------------------------
         y2 = engines.resample(x, up_src, hi_dst, engine, opts)
@@ -862,6 +879,21 @@ def verdict_src(measurements: list[SrcMeasurement]) -> list[dict]:
 
     best_spur = min(ok, key=lambda m: m.spur_dbc)
     worst_spur = max(ok, key=lambda m: m.spur_dbc)
+
+    # SINAD / ENOB：同一批 1 kHz 输出的"总和"口径。与杂散分开报，是因为两者
+    # 的分母不同 —— 杂散只扣基频附近的 bin，SINAD 把镜像与宽带噪声也算进去。
+    # 带内列能把"镜像受限"与"带内失真"分开：前者换一个带宽读数就消失。
+    best_sinad = max(ok, key=lambda m: m.sinad_dbc)
+    if best_sinad.sinad_dbc > -300:
+        out.append({
+            "level": "ok",
+            "title": "单音信纳比",
+            "text": (f"{best_sinad.label} 的 SINAD 为 {best_sinad.sinad_dbc:.1f} dBc，"
+                     f"等效 {best_sinad.enob_bits:.1f} bit；20 kHz 带内为 "
+                     f"{best_sinad.sinad_inband_dbc:.1f} dBc（{best_sinad.enob_inband_bits:.1f} bit）。"
+                     "带内与全带差得多，说明限制来自镜像区而不是带内失真。"),
+            "metric": f"SINAD {best_sinad.sinad_dbc:.1f} dBc",
+        })
     # 杂散用泄漏免疫口径（扣掉基频 bin 后的残余），地板约 −307 dBc：读数贴在
     # 地板上只能说明"低于测量能力"，不能拿来排名。文案必须把这层说清楚，
     # 否则 −304 与 −306 之间 2 dB 会被读者当成"引擎更干净"。
