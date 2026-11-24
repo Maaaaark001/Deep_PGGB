@@ -108,12 +108,12 @@ python app.py --reload            # 开发模式
 
 | key | 引擎 | 特点 | 实测杂散 |
 | --- | --- | --- | --- |
-| `dpggb` | **Deep_PGGB**（自研） | 近理想低通，任意倍率；对精确参考 302.6 dB（PGGB 302.0 dB，不可区分）；四项失真列不劣于 PGGB、多音持平；速度 118× 对 30×（r8brain 90×）；**上行方向唯一把通带保持到源奈奎斯特**（22.049 kHz −0.05 dB） | −304.2 dBc |
+| `dpggb` | **Deep_PGGB**（自研） | 近理想低通，任意倍率；对精确参考 302.6 dB（PGGB 302.0 dB，不可区分）；四项失真列不劣于 PGGB、多音持平；速度 180× 对 43×（r8brain 109×）；**上行方向唯一把通带保持到源奈奎斯特**（22.049 kHz −0.05 dB） | −304.2 dBc |
 | `pggb` | **PGGB（原版，仅基准）** | 商用离线工具，精度与 Deep_PGGB 不可区分；**只接受整数倍率、无降采样**，因此只出现在基准页，不参与转换 | −304.0 dBc |
 | `r8b` | r8brain-free | 第三好的保真度，MIT | −283.6 dBc |
 | `soxng` | sox_ng 14.9 `rate` | 旋钮最全，编码/抖动也归它 | −186.6 dBc (`-u`) |
 | `ssrc` | SSRC / Shibatch | **下行**保到 22 kHz（降采样方向最宽）；上行在 22.05 kHz 陡降 125 dB | −152.2 dBc (insane) |
-| `soxr` | libsoxr | 全场最快（60 s 立体声 44.1→88.2 达 585× 实时） | −195.7 dBc |
+| `soxr` | libsoxr | 全场最快（60 s 立体声 44.1→88.2 达 658× 实时） | −195.7 dBc |
 | `swr` | ffmpeg `aresample` | 生态最广，但通带 21 kHz 已 −4.1 dB、21.5 kHz −31.4 dB | −195.7 dBc |
 | `scipy` | `resample_poly` | 纯 Python 参考实现 | −86.2 dBc |
 
@@ -140,8 +140,8 @@ rs.close()
 ```
 
 同一窗口几何下，60 s 立体声 44.1→88.2 的吞吐从 Python 外挂补丁的
-9.6/13.5/18.4×（core 0.5/1.0/2.0 s）提高到 **33.9/54.2/74.8×**；原因是每窗口不再启动
-`dpggb.exe`、不再写临时文件，且线程局部的 FFT plan 能跨窗口复用。原生输出与 Python
+9.6/13.5/18.4×（core 0.5/1.0/2.0 s）提高到 **31.9/47.6/70.8×**；原因是每窗口不再启动
+`dpggb.exe`、不再写临时文件，且 FFT plan 在进程内共享、不随窗口重建。原生输出与 Python
 `StreamResampler` 逐位相同（4 s 多音测试），与离线整文件在 200 ms 后的内部零差为 122 dB。
 非 Windows 或 DLL 缺失时仍可用纯 Python 的 `StreamResampler` 回退。
 
@@ -215,7 +215,7 @@ Deep_PGGB 的分块长度/并行工作数/内存上限/首尾渐变/分块上下
 ## 论文与复现
 
 **《任意有理倍率的分块频域重采样方法——误差分解、流式扩展与八引擎对照》**
-21 页 / 9 图 / 6 表 / 25 条参考文献。
+22 页 / 9 图 / 6 表 / 25 条参考文献。
 
 - [论文 docx](work/paper/Deep_PGGB_paper.docx) · [论文 pdf](work/paper/Deep_PGGB_paper.pdf)
 - [学术评审](work/paper/REVIEW_academic.md) · [写作评审](work/paper/REVIEW_writing.md) · [闭环修改记录](work/paper/REVIEW_closed_loop.md)

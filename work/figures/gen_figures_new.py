@@ -292,9 +292,9 @@ def fig3_engines():
             b.scatter(sp, wo, s=30, marker="o", color="#9aa6b2", edgecolor="white",
                       linewidth=0.4, zorder=3)
     b.set_xscale("log")
-    b.set_xlim(18, 900)
-    b.set_xticks([20, 50, 100, 200, 500])
-    b.set_xticklabels(["20", "50", "100", "200", "500"])
+    b.set_xlim(18, 1150)
+    b.set_xticks([20, 50, 100, 200, 500, 1000])
+    b.set_xticklabels(["20", "50", "100", "200", "500", "1000"])
     b.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
     b.set_ylim(-312, -48)
     b.set_xlabel("Throughput (× realtime)")
@@ -302,7 +302,7 @@ def fig3_engines():
     b.axhline(floors["mt_dbc"], color="#8a8a8a", ls=":", lw=0.7)
     b.text(20, floors["mt_dbc"] - 6, "multi-tone floor", fontsize=7.0, color=MUTED, ha="left", va="top")
     offs = {"dpggb": (1.02, 7), "pggb": (1.12, 7), "r8b": (1.07, 4),
-            "soxng": (1.07, 7), "swr": (0.55, -14), "soxr": (0.90, -12),
+            "soxng": (1.07, 7), "swr": (0.52, -20), "soxr": (0.80, -12),
             "ssrc": (1.08, 4), "scipy": (1.06, 4)}
     for sp, wo, k in vals:
         dx, dy = offs[k]
@@ -392,7 +392,7 @@ def fig5_speed():
     a.set_xticklabels(["0.5", "1", "2", "4", "30"])
     a.set_xlabel("Block length (s)")
     a.set_ylabel("Throughput (× realtime)")
-    a.set_ylim(60, 160)
+    a.set_ylim(60, 215)
     a.legend(fontsize=6.2, loc="lower left", bbox_to_anchor=(0.0, 1.0),
              frameon=False, ncol=2, columnspacing=0.9, handlelength=1.2,
              borderaxespad=0.0, labelspacing=0.3)

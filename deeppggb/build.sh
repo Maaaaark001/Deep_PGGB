@@ -8,6 +8,11 @@ cd "$(dirname "$0")"
 CXX=${CXX:-g++}
 INC="third_party/include"
 LIB="third_party/lib"
+# -O3 and nothing more: the core spends ~75% of a block inside the FFTW DLL,
+# so -Ofast / -march=native move nothing here. Measured on 60 s stereo
+# 44.1->88.2 (best of 5, interleaved): -O3 129x, -Ofast 126x, -O3 -march=native
+# 123x, -Ofast -march=native 132x -- all inside the +/-5% run-to-run spread.
+# Keep -O3 so the binary stays portable to any x86-64 CPU.
 COMMON=(-O3 -std=c++20 -I"$INC")
 LIBS=(-L"$LIB" -lfftw3 -lfftw3_threads -lfftw3l -lfftw3l_threads
       -static-libgcc -static-libstdc++ -lwinpthread)

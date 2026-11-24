@@ -30,12 +30,27 @@ sys.path.insert(0, ROOT)
 from deeppggb_stream import NativeStreamResampler  # noqa: E402
 
 SR, DST, CH = 44100, 88200, 2
-FFMPEG = r"C:\Users\Administrator\AppData\Local\Temp\ffm\ffmpeg-master-latest-win64-gpl\bin\ffmpeg.exe"
-SOXNG = r"C:\Users\Administrator\.dsh\skills\src-toolchain\bin\sox_ng.exe"
-if not os.path.exists(FFMPEG):
-    FFMPEG = shutil.which("ffmpeg")
-if not os.path.exists(SOXNG):
-    SOXNG = shutil.which("sox_ng")
+def _resolve_tool(env_var, attr, *names):
+    """Env var -> srctool.config (the project's own chain) -> PATH."""
+    v = os.environ.get(env_var)
+    if v and os.path.exists(v):
+        return v
+    try:
+        from srctool import config as _cfg
+        p = getattr(_cfg, attr, None)
+        if p and os.path.exists(str(p)):
+            return str(p)
+    except Exception:
+        pass
+    for n in names:
+        w = shutil.which(n)
+        if w:
+            return w
+    return None
+
+
+FFMPEG = _resolve_tool("FFMPEG", "FFMPEG", "ffmpeg.exe", "ffmpeg")
+SOXNG = _resolve_tool("SOXNG", "SOXNG", "sox_ng.exe", "sox_ng")
 
 
 def signal(seconds):
@@ -99,12 +114,36 @@ def soxr_latency(chunk, seconds=5.0):
     return None
 
 
+_SOXR = None
+
+
+def _ffmpeg_has_soxr():
+    global _SOXR
+    if _SOXR is None:
+        _SOXR = False
+        try:
+            from srctool import engines as _E
+            _SOXR = bool(_E.ffmpeg_caps().get("soxr"))
+        except Exception:
+            pass
+    return _SOXR
+
+
 def pipe_cmd(engine):
     if engine == "ffmpeg":
+        if not FFMPEG:
+            raise RuntimeError("ffmpeg not found: set FFMPEG or put it on PATH")
+        # essentials builds ship no libsoxr; asking for resampler=soxr then fails with
+        # EINVAL ("Task finished with error code: -22"), so pick whatever is present.
+        af = "aresample=%d" % DST
+        if _ffmpeg_has_soxr():
+            af += ":resampler=soxr"
         return [FFMPEG, "-v", "error", "-nostdin", "-f", "f64le", "-ar", str(SR),
                 "-ac", str(CH), "-i", "pipe:0",
-                "-af", "aresample=%d:resampler=soxr" % DST, "-f", "f64le", "pipe:1"]
+                "-af", af, "-f", "f64le", "pipe:1"]
     if engine == "sox_ng":
+        if not SOXNG:
+            raise RuntimeError("sox_ng not found: set SOXNG or put it on PATH")
         return [SOXNG, "-q", "-t", "f64", "-r", str(SR), "-c", str(CH), "-",
                 "-t", "f64", "-r", str(DST), "-", "rate", "-v"]
     raise ValueError(engine)
@@ -191,6 +230,9 @@ def main():
                      rows[-1]["latency_s"] or -1, frames), flush=True)
 
     for eng in ("soxr", "ffmpeg", "sox_ng"):
+        if (eng == "ffmpeg" and not FFMPEG) or (eng == "sox_ng" and not SOXNG):
+            print("%-6s skipped: binary not found" % eng, flush=True)
+            continue
         for chunk in chunks:
             if eng == "soxr":
                 (wall, frames), vals = best_of(lambda: soxr_run(x, chunk), args.reps)

@@ -21,10 +21,20 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <mutex>
 #include <stdexcept>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -70,6 +80,8 @@ template <> struct Fftw<double> {
     static plan r2c(int n, double* i, cplx* o) { return fftw_plan_dft_r2c_1d(n, i, o, FFTW_ESTIMATE); }
     static plan c2r(int n, cplx* i, double* o) { return fftw_plan_dft_c2r_1d(n, i, o, FFTW_ESTIMATE); }
     static void exec(plan p) { fftw_execute(p); }
+    static void exec_r2c(plan p, double* i, cplx* o) { fftw_execute_dft_r2c(p, i, o); }
+    static void exec_c2r(plan p, cplx* i, double* o) { fftw_execute_dft_c2r(p, i, o); }
     static void destroy(plan p) { fftw_destroy_plan(p); }
     static void init_threads() { fftw_init_threads(); }
     static void with_threads(int n) { fftw_plan_with_nthreads(n); }
@@ -83,6 +95,8 @@ template <> struct Fftw<long double> {
     static plan r2c(int n, long double* i, cplx* o) { return fftwl_plan_dft_r2c_1d(n, i, o, FFTW_ESTIMATE); }
     static plan c2r(int n, cplx* i, long double* o) { return fftwl_plan_dft_c2r_1d(n, i, o, FFTW_ESTIMATE); }
     static void exec(plan p) { fftwl_execute(p); }
+    static void exec_r2c(plan p, long double* i, cplx* o) { fftwl_execute_dft_r2c(p, i, o); }
+    static void exec_c2r(plan p, cplx* i, long double* o) { fftwl_execute_dft_c2r(p, i, o); }
     static void destroy(plan p) { fftwl_destroy_plan(p); }
     static void init_threads() { fftwl_init_threads(); }
     static void with_threads(int n) { fftwl_plan_with_nthreads(n); }
@@ -97,81 +111,178 @@ inline std::mutex& fftw_plan_mutex() {
     return m;
 }
 
-// A plan is bound to its buffers, so each cache entry owns a scratch set.
+// Plans are shared process-wide; only the scratch buffers are per thread.
+//
+// A plan used to be owned by a per-thread PlanCache, so every worker thread
+// built its own: 29 ms of ESTIMATE planning for the 708588/1417176 grid (the
+// 16 s, 44.1->88.2 block), paid once per worker and serialised by
+// fftw_plan_mutex(). Measured A/B against the per-thread version on the same
+// machine: single-threaded identical, 2-4 workers 4-21% faster (median +6% over
+// four paired rounds). FFTW's new-array execute lets one plan drive
+// any buffers of the same size and alignment, and every buffer here comes from
+// fftw_malloc, so the plan is built once and each thread executes it against
+// its own scratch. The FFTW manual (threads.texi) states that executing the
+// same plan from several threads is safe precisely because execute never
+// modifies the plan.
 template <typename R>
-struct Plans {
+struct PlanPair {
     typename Fftw<R>::plan r2c = nullptr;
     typename Fftw<R>::plan c2r = nullptr;
+};
+
+// Wisdom turns a measured plan into a table lookup. FFTW_WISDOM_ONLY returns
+// NULL immediately when no matching entry exists, so this can never stall;
+// without a wisdom file the behaviour is the old ESTIMATE one.
+//
+// Measured, and the reason no wisdom file ships: on this machine the 16 s
+// 44.1->88.2 grid (r2c 708588, c2r 1417176) goes 9.4 -> 6.4 ms for r2c and
+// 21.5 -> 21.0 ms for c2r, planning costs 12 s + 34 s, and an interleaved A/B
+// over four paired rounds showed no reproducible end-to-end difference. The
+// cheap r2c gain disappears behind the c2r, which is 60% of the block and where
+// MEASURE finds nothing better. A wisdom file is still honoured if one is
+// dropped next to the DLL (or named by DPGGB_WISDOM) for grids nobody has
+// benchmarked here.
+template <typename R> struct Wisdom;
+template <> struct Wisdom<double> {
+    static int load(const char* f) { return fftw_import_wisdom_from_filename(f); }
+};
+template <> struct Wisdom<long double> {
+    static int load(const char* f) { return fftwl_import_wisdom_from_filename(f); }
+};
+
+inline std::string module_dir() {
+#ifdef _WIN32
+    char buf[4096] = {0};
+    HMODULE h = nullptr;
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            (LPCSTR) (const void*) &module_dir, &h))
+        return std::string();
+    const DWORD n = GetModuleFileNameA(h, buf, (DWORD) sizeof(buf));
+    if (!n) return std::string();
+    std::string s(buf, (size_t) n);
+    const size_t p = s.find_last_of("\\/");
+    return p == std::string::npos ? std::string() : s.substr(0, p + 1);
+#else
+    return std::string();
+#endif
+}
+
+inline bool dp_debug() {
+    static const bool v = std::getenv("DPGGB_DEBUG") != nullptr;
+    return v;
+}
+
+template <typename R>
+inline void load_wisdom_once() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        const char* env = std::getenv("DPGGB_WISDOM");
+        int ok = 0;
+        if (env && *env && (ok = Wisdom<R>::load(env))) {
+            if (dp_debug()) std::fprintf(stderr, "[dpggb] wisdom from %s (%d)\n", env, ok);
+            return;
+        }
+        const std::string dir = module_dir();
+        if (!dir.empty() && (ok = Wisdom<R>::load((dir + "fftw_wisdom.dat").c_str()))) {
+            if (dp_debug()) std::fprintf(stderr, "[dpggb] wisdom from module dir (%d)\n", ok);
+            return;
+        }
+        ok = Wisdom<R>::load("fftw_wisdom.dat");
+        if (dp_debug()) std::fprintf(stderr, "[dpggb] wisdom fallback cwd (%d)\n", ok);
+    });
+}
+
+template <typename R>
+struct Scratch {
     R* in = nullptr;
     R* out = nullptr;
     typename Fftw<R>::cplx* spec = nullptr;
-    int n_in = 0, n_out = 0, n_buf = 0;
 };
 
 template <typename R>
-class PlanCache {
+class ScratchSet {
 public:
-    Plans<R>& get(int n_in, int n_out, int threads) {
+    Scratch<R>& get(int n_buf) {
+        auto it = map_.find(n_buf);
+        if (it != map_.end()) return it->second;
+        Scratch<R> s;
+        s.in = (R*) Fftw<R>::alloc(sizeof(R) * (size_t) n_buf);
+        s.out = (R*) Fftw<R>::alloc(sizeof(R) * (size_t) n_buf);
+        s.spec = (typename Fftw<R>::cplx*) Fftw<R>::alloc(
+            sizeof(typename Fftw<R>::cplx) * (size_t) (n_buf / 2 + 2));
+        if (!s.in || !s.out || !s.spec) throw std::runtime_error("fftw allocation failed");
+        return map_.emplace(n_buf, s).first->second;
+    }
+    ~ScratchSet() {
+        for (auto& kv : map_) {
+            Fftw<R>::free(kv.second.in);
+            Fftw<R>::free(kv.second.out);
+            Fftw<R>::free(kv.second.spec);
+        }
+    }
+private:
+    std::map<int, Scratch<R>> map_;
+};
+
+// Buffers are per thread, because two threads must not share the arrays an
+// execute call writes into. No zeroing: every caller fills what it reads.
+template <typename R>
+Scratch<R>& scratch(int n_buf) {
+    thread_local ScratchSet<R> s;
+    return s.get(n_buf);
+}
+
+template <typename R>
+class PlanRegistry {
+public:
+    PlanPair<R>& get(int n_in, int n_out, int threads, Scratch<R>& sc) {
+        const int th = threads > 0 ? threads : 1;
         std::lock_guard<std::mutex> lock(mu_);
-        const auto key = std::make_tuple(n_in, n_out, threads);
+        const auto key = std::make_tuple(n_in, n_out, th);
         auto it = map_.find(key);
         if (it != map_.end()) return it->second;
 
-        // FFTW plan creation is not thread-safe, and workers create plans
-        // concurrently. A global lock around creation (not execution) is
-        // enough: executing a plan from several threads is fine, and each
-        // thread owns its own buffers.
+        // FFTW plan creation is not thread-safe and is serialised here; with
+        // shared plans that happens once per grid instead of once per worker.
         std::lock_guard<std::mutex> create_lock(fftw_plan_mutex());
-
         static std::once_flag once;
         std::call_once(once, [] { Fftw<R>::init_threads(); });
+        load_wisdom_once<R>();
 
-        Plans<R> p;
-        p.n_in = n_in;
-        p.n_out = n_out;
-        p.n_buf = std::max(n_in, n_out);
-        p.in = (R*) Fftw<R>::alloc(sizeof(R) * (size_t) p.n_buf);
-        p.out = (R*) Fftw<R>::alloc(sizeof(R) * (size_t) p.n_buf);
-        p.spec = (typename Fftw<R>::cplx*) Fftw<R>::alloc(
-            sizeof(typename Fftw<R>::cplx) * (size_t) (p.n_buf / 2 + 2));
-        if (!p.in || !p.out || !p.spec) throw std::runtime_error("fftw allocation failed");
-        std::memset(p.in, 0, sizeof(R) * (size_t) p.n_buf);
-        std::memset(p.out, 0, sizeof(R) * (size_t) p.n_buf);
-        std::memset(p.spec, 0, sizeof(typename Fftw<R>::cplx) * (size_t) (p.n_buf / 2 + 2));
-
-        Fftw<R>::with_threads(threads > 0 ? threads : 1);
-        p.r2c = Fftw<R>::r2c(n_in, p.in, p.spec);
-        p.c2r = Fftw<R>::c2r(n_out, p.spec, p.out);
+        PlanPair<R> p;
+        const auto t0 = std::chrono::steady_clock::now();
+        Fftw<R>::with_threads(th);
+        p.r2c = Fftw<R>::r2c(n_in, sc.in, sc.spec);
+        p.c2r = Fftw<R>::c2r(n_out, sc.spec, sc.out);
+        Fftw<R>::with_threads(1);
+        if (dp_debug()) {
+            const double ms = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - t0).count();
+            std::fprintf(stderr, "[dpggb] plan %d/%d th=%d: %.1f ms\n", n_in, n_out, th, ms);
+        }
+        if (!p.r2c || !p.c2r) throw std::runtime_error("fftw plan creation failed");
         return map_.emplace(key, p).first->second;
     }
-
-    ~PlanCache() {
-        // Plans own FFTW buffers, and thread_local destruction happens when a
-        // block worker exits. Without this, every window that used a fresh
-        // worker leaked its scratch set: a 60 s stereo run with 8 workers grew
-        // without bound and could exhaust the machine.
-        for (auto& kv : map_) {
-            Plans<R>& p = kv.second;
-            if (p.r2c) Fftw<R>::destroy(p.r2c);
-            if (p.c2r) Fftw<R>::destroy(p.c2r);
-            Fftw<R>::free(p.in);
-            Fftw<R>::free(p.out);
-            Fftw<R>::free(p.spec);
-        }
-    }
-
 private:
     std::mutex mu_;
-    std::map<std::tuple<int, int, int>, Plans<R>> map_;
+    std::map<std::tuple<int, int, int>, PlanPair<R>> map_;
 };
 
-// One cache per thread: a plan owns its scratch buffers, so two threads sharing
-// an entry would corrupt each other. thread_local also means the buffers are
-// released when a worker exits, instead of accumulating for every grid size.
-template <typename R> Plans<R>& plans(int n_in, int n_out, int threads) {
-    thread_local PlanCache<R> c;
-    return c.get(n_in, n_out, threads);
+// Deliberately leaked: FFTW has no finaliser that must run, and destroying plans
+// during static destruction would race threads that may still be executing.
+template <typename R>
+PlanRegistry<R>& registry() {
+    static PlanRegistry<R>* r = new PlanRegistry<R>();
+    return *r;
 }
+
+template <typename R>
+PlanPair<R>& plan_pair(long long P, long long Q, int threads) {
+    Scratch<R>& sc = scratch<R>((int) std::max<long long>(P, Q));
+    return registry<R>().get((int) P, (int) Q, threads, sc);
+}
+
 
 // ------------------------------------------------------------------
 // Tapers.
@@ -262,43 +373,44 @@ std::vector<R> design_minphase_lowpass(int ntap, double fc, int threads) {
     int n = 1;
     while (n < 8 * ntap) n <<= 1;
     const int nc = n / 2 + 1;
-    Plans<R>& p = plans<R>(n, n, threads);
+    Scratch<R>& sc = scratch<R>(n);
+    PlanPair<R>& pp = registry<R>().get(n, n, threads, sc);
 
-    for (int i = 0; i < n; ++i) p.in[i] = (R) 0;
-    for (int i = 0; i < ntap; ++i) p.in[i] = lin[(size_t) i];
-    Fftw<R>::exec(p.r2c);
+    for (int i = 0; i < n; ++i) sc.in[i] = (R) 0;
+    for (int i = 0; i < ntap; ++i) sc.in[i] = lin[(size_t) i];
+    Fftw<R>::exec_r2c(pp.r2c, sc.in, sc.spec);
 
     std::vector<R> logmag((size_t) nc);
     for (int i = 0; i < nc; ++i) {
-        const double m = std::hypot((double) p.spec[i][0], (double) p.spec[i][1]);
+        const double m = std::hypot((double) sc.spec[i][0], (double) sc.spec[i][1]);
         logmag[(size_t) i] = (R) std::log(std::max(m, 1e-12));
     }
 
-    for (int i = 0; i < n; ++i) p.in[i] = (R) 0;
-    for (int i = 0; i < nc; ++i) p.in[i] = logmag[(size_t) i];
-    for (int i = 1; i < n - nc + 1; ++i) p.in[n - i] = p.in[i];
-    Fftw<R>::exec(p.r2c);
+    for (int i = 0; i < n; ++i) sc.in[i] = (R) 0;
+    for (int i = 0; i < nc; ++i) sc.in[i] = logmag[(size_t) i];
+    for (int i = 1; i < n - nc + 1; ++i) sc.in[n - i] = sc.in[i];
+    Fftw<R>::exec_r2c(pp.r2c, sc.in, sc.spec);
 
     std::vector<R> cep((size_t) n, (R) 0);
-    for (int i = 0; i < nc; ++i) cep[(size_t) i] = p.spec[i][0] / (R) n;
+    for (int i = 0; i < nc; ++i) cep[(size_t) i] = sc.spec[i][0] / (R) n;
     for (int i = 1; i < n - nc + 1; ++i) cep[(size_t) (n - i)] = cep[(size_t) i];
     for (int i = 1; i < n / 2; ++i) cep[(size_t) i] *= (R) 2;
     for (int i = n / 2 + 1; i < n; ++i) cep[(size_t) i] = (R) 0;
 
-    for (int i = 0; i < n; ++i) p.in[i] = cep[(size_t) i];
-    Fftw<R>::exec(p.r2c);
+    for (int i = 0; i < n; ++i) sc.in[i] = cep[(size_t) i];
+    Fftw<R>::exec_r2c(pp.r2c, sc.in, sc.spec);
 
     // 3) exp(cepstrum spectrum) -> minimum-phase spectrum; back to taps
     for (int i = 0; i < nc; ++i) {
-        const double a = (double) p.spec[i][0];
-        const double b = (double) p.spec[i][1];
+        const double a = (double) sc.spec[i][0];
+        const double b = (double) sc.spec[i][1];
         const double m = std::exp(a);
-        p.spec[i][0] = (R) (m * std::cos(b));
-        p.spec[i][1] = (R) (m * std::sin(b));
+        sc.spec[i][0] = (R) (m * std::cos(b));
+        sc.spec[i][1] = (R) (m * std::sin(b));
     }
-    Fftw<R>::exec(p.c2r);
+    Fftw<R>::exec_c2r(pp.c2r, sc.spec, sc.out);
     std::vector<R> taps((size_t) ntap, (R) 0);
-    for (int i = 0; i < ntap; ++i) taps[(size_t) i] = p.out[i] / (R) n;
+    for (int i = 0; i < ntap; ++i) taps[(size_t) i] = sc.out[i] / (R) n;
     return taps;
 }
 
@@ -335,13 +447,17 @@ void convert_block(const R* x, long long n, const Ratio& r, long long P, int thr
     const long long Q = (P / r.M) * r.L;
     if (P > (1LL << 30) || Q > (1LL << 30)) throw std::runtime_error("block too large");
 
-    Plans<R>& p = plans<R>((int) P, (int) Q, threads);
+    Scratch<R>& sc = scratch<R>((int) std::max<long long>(P, Q));
+    PlanPair<R>& pp = registry<R>().get((int) P, (int) Q, threads, sc);
 
-    std::fill(p.in, p.in + P, (R) 0);
-    std::memcpy(p.in, x, sizeof(R) * (size_t) std::min<long long>(n, P));
-    apply_taper<R>(p.in, P, taper_len, taper_shape);
+    // Copy first, zero only the tail: callers pass n == P, so a full-buffer
+    // std::fill here would memset 5.7 MB per block and then overwrite it.
+    const long long ncopy = std::min<long long>(n, P);
+    std::memcpy(sc.in, x, sizeof(R) * (size_t) ncopy);
+    if (ncopy < P) std::fill(sc.in + ncopy, sc.in + P, (R) 0);
+    apply_taper<R>(sc.in, P, taper_len, taper_shape);
 
-    Fftw<R>::exec(p.r2c);
+    Fftw<R>::exec_r2c(pp.r2c, sc.in, sc.spec);
 
     const int nc_in = (int) (P / 2 + 1);
     const int nc_out = (int) (Q / 2 + 1);
@@ -386,19 +502,19 @@ void convert_block(const R* x, long long n, const Ratio& r, long long P, int thr
         // passband width for even faster edge decay.
         double w = c;
         for (int k = 1; k < roll_order; ++k) w *= c;
-        p.spec[i][0] = (R) (p.spec[i][0] * w);
-        p.spec[i][1] = (R) (p.spec[i][1] * w);
+        sc.spec[i][0] = (R) (sc.spec[i][0] * w);
+        sc.spec[i][1] = (R) (sc.spec[i][1] * w);
     }
     for (int i = (int) keep; i < nc_out; ++i) {
-        p.spec[i][0] = (R) 0;
-        p.spec[i][1] = (R) 0;
+        sc.spec[i][0] = (R) 0;
+        sc.spec[i][1] = (R) 0;
     }
 
-    Fftw<R>::exec(p.c2r);
+    Fftw<R>::exec_c2r(pp.c2r, sc.spec, sc.out);
     // FFTW inverse transforms are unnormalised; /P restores unit passband gain.
     const R norm = (R) (1.0 / (double) P);
-    out.assign((size_t) Q, (R) 0);
-    for (long long i = 0; i < Q; ++i) out[(size_t) i] = p.out[i] * norm;
+    out.resize((size_t) Q);   // every element is written below
+    for (long long i = 0; i < Q; ++i) out[(size_t) i] = sc.out[i] * norm;
 }
 // ------------------------------------------------------------------
 // Block driver.
@@ -636,12 +752,21 @@ std::vector<R> resample_typed(const R* x, size_t n, const Cfg& cfg, const Ratio&
     long long nblocks = 0;
     for (long long start = 0; start < (long long) n; start += kept) ++nblocks;
 
-    // Each worker owns its scratch, because a plan is bound to its buffers.
     // One thread per block would thrash the cache on short blocks, so cap it.
     unsigned hw = (unsigned) (cfg.workers > 0 ? cfg.workers : std::thread::hardware_concurrency());
     if (hw == 0) hw = 1;
     long long nworkers = std::min<long long>(nblocks, (long long) hw);
     if (nworkers < 1) nworkers = 1;
+
+    // Build the plans once, on this thread, before the pool starts. Plan
+    // creation is serialised process-wide, so letting each worker do it stacks
+    // one ~40 ms planning pass per worker instead of overlapping them.
+    const long long Q_grid = (P / r.M) * r.L;
+    const int fft_threads = cfg.threads > 0 ? cfg.threads : 1;
+    if (dp_debug())
+        std::fprintf(stderr, "[dpggb] grid P=%lld Q=%lld blocks=%lld workers=%lld\n",
+                     P, Q_grid, nblocks, nworkers);
+    (void) plan_pair<R>(P, Q_grid, fft_threads);
 
     auto do_block = [&](long long bi, std::vector<R>& block, std::vector<R>& conv) {
         const long long start = bi * kept;
@@ -654,7 +779,7 @@ std::vector<R> resample_typed(const R* x, size_t n, const Cfg& cfg, const Ratio&
         long long bt = (long long) (cfg.block_taper_ms * 0.001 * cfg.in_rate);
         if (bt < 1) bt = 1;
         if (bt > T) bt = T;
-        convert_block<R>(block.data(), P, r, P, 1, (int) bt, cfg.taper_shape, cfg.phase,
+        convert_block<R>(block.data(), P, r, P, fft_threads, (int) bt, cfg.taper_shape, cfg.phase,
                          cfg.in_rate, cfg.rolloff_hz, cfg.roll_order, conv);
 
         const long long o0 = start * r.L / r.M;

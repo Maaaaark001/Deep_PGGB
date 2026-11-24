@@ -10,6 +10,7 @@ __pycache__/
 *.obj
 *.o
 *.lib
+*.dll.a
 deeppggb/third_party/
 
 # ---- 音频与测量中间件（可重新生成）----
@@ -47,6 +48,9 @@ work/paper/verify_png.sh
 music/
 work/dec_*/
 work/uploads/
+
+# ---- 一次性基准脚手架（结论已进 AGENTS.md，脚本仅本地留存）----
+work/bench_opt/
 
 # ---- 杂项 ----
 cache/
