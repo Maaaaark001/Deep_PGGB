@@ -248,22 +248,89 @@ def _validate(rate: int = 88200, freq: float = 1000.0, n: int = 88200) -> None:
     print("   ENOB(302 dB SINAD_FS) = %.2f bit" % ((302.0 - 1.76) / 6.02))
 
 
+def profile(y: np.ndarray, rate: int, freq: float, *, step: float = 0.25,
+            margin: float = 0.05, win: float = 1.0) -> list:
+    """用 1 s 窗铺满整个输出（每 step 秒取一个），返回逐窗读数。
+
+    首尾各让出 margin：输入的 20 ms 渐变落进窗里会把 SINAD 从 305 dB 打到 20 dB，
+    那是激励的边界，不是引擎的。窗长取整数个周期，矩形窗无泄漏。
+    """
+    s = np.asarray(y[:, 0] if y.ndim > 1 else y, dtype=np.float64)
+    n = s.size
+    w = int(round(win * rate))
+    m = int(round(margin * n))
+    out = []
+    st = m
+    while st + w <= n - m:
+        r = analyze(s[st:st + w], rate, freq)
+        r["t"] = st / float(rate)
+        out.append(r)
+        st += int(round(step * rate))
+    return out
+
+
+def _median_row(rows: list) -> dict:
+    def med(k):
+        return median([r[k] for r in rows])
+    return {
+        "sinad_db": med("sinad_db"),
+        "sinad_inband_db": med("sinad_inband_db"),
+        "sinad_fs_db": med("sinad_fs_db"),
+        "sfdr_db": med("sfdr_db"),
+        "enob_bits": med("enob_bits"),
+        "enob_inband_bits": med("enob_inband_bits"),
+        "amp": med("amp"),
+        "windows": len(rows),
+    }
+
+
+def measure_engine_full(engine: str, opts=None, *, src: int = 44100, dst: int = 88200,
+                        freq: float = 1000.0, seconds: float = 16.0,
+                        step: float = 0.25, settled_from: float = 2.0,
+                        settled_to: float = 13.0) -> dict:
+    """整段测量：在"平稳区"取中位数，在全部窗里取最差一秒。
+
+    两件事必须分开报：平稳区回答"引擎在稳定状态下能做到多少"（这时每台都贴
+    float64 地板，差异不可复现）；最差一秒回答"交付的文件里有没有一秒被
+    边界效应污染"。后者才区分得开分块处理的引擎。
+    """
+    from srctool import engines as E, quality as Q
+    x = Q._tone(freq, src, seconds, 0.5)
+    y = E.resample(x, src, dst, engine, opts if opts is not None else E.default_opts(engine))
+    prof = profile(y, dst, freq, step=step)
+    settled = [r for r in prof if settled_from <= r["t"] <= settled_to]
+    worst = min(prof, key=lambda r: r["sinad_db"])
+    row = {"engine": engine, "settled": _median_row(settled),
+           "worst": {k: worst[k] for k in
+                     ("t", "sinad_db", "sinad_inband_db", "sinad_fs_db", "sfdr_db",
+                      "enob_bits", "enob_inband_bits", "amp", "spur_hz")},
+           "profile": [[round(r["t"], 3), round(r["sinad_db"], 2),
+                        round(r["sinad_inband_db"], 2)] for r in prof]}
+    row["settled"]["engine"] = engine
+    return row
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "validate":
         _validate()
         sys.exit(0)
-    keys = sys.argv[1:] or ["dpggb", "pggb", "r8b", "soxng", "swr", "soxr", "ssrc", "scipy"]
+    keys = [a for a in sys.argv[1:] if not a.startswith("-")] or \
+        ["dpggb", "pggb", "r8b", "soxng", "swr", "soxr", "ssrc", "scipy"]
     rows = []
-    print("%-7s %9s %9s %9s %9s %8s %8s" % ("engine", "SINAD", "SINAD<20k", "SFDR", "ENOB", "THD", "SNR"))
+    print("%-7s %9s %9s %9s | %7s %8s %7s" %
+          ("engine", "SINAD", "<20k", "SFDR", "worst@t", "worst", "ENOBw"))
     for key in keys:
-        m = measure_engine(key)
+        m = measure_engine_full(key)
         rows.append(m)
-        print("%-7s %9.1f %9.1f %9.1f %9.2f %8.1f %8.1f" %
-              (m["engine"], m["sinad_db"], m["sinad_inband_db"], m["sfdr_db"],
-               m["enob_bits"], m["thd_db"], m["snr_db"]))
+        st, wo = m["settled"], m["worst"]
+        print("%-7s %9.1f %9.1f %9.1f | %7.2f %8.1f %7.2f" %
+              (key, st["sinad_db"], st["sinad_inband_db"], st["sfdr_db"],
+               wo["t"], wo["sinad_db"], wo["enob_bits"]))
     out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                       "work", "sinad_sfdr_enob.json")
+                       "work", "sinad_profile.json")
     with open(out, "w", encoding="utf-8") as f:
-        json.dump({"protocol": "16 s, 1 kHz, amp 0.5, 44.1→88.2, 5×1 s windows, median",
+        json.dump({"protocol": "16 s, 1 kHz, amp 0.5, 44.1→88.2; 1 s windows every 0.25 s "
+                               "tiling the whole output (20 ms fades excluded); settled = "
+                               "median over t in [2, 13] s; worst = min over all windows",
                    "rows": rows}, f, ensure_ascii=False, indent=1)
     print("WROTE", out)

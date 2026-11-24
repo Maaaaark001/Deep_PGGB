@@ -172,7 +172,7 @@ Deep_PGGB 的分块长度/并行工作数/内存上限/首尾渐变/分块上下
 - 多音残余 = 24 个对数等间隔音（100 Hz–18 kHz，Schroeder 相位），扣掉各音 bin 后的剩余能量
 
 > **五个分析地板**（把同一组频率直接在目标采样率上合成、完全不重采样，读数就是极限）：
-> 单音杂散 −307.1、镜像 −320.2、CCIF −334.4、SMPTE −334.7、24 音残余 −295.2 dBc。单音 SINAD/SFDR/ENOB 用残差法另算：Deep_PGGB 305.8 dBc / 320.2 dBc / 51.5 bit，20 kHz 带内 307.3 dBc（51.8 bit）。
+> 单音杂散 −307.1、镜像 −320.2、CCIF −334.4、SMPTE −334.7、24 音残余 −295.2 dBc。单音 SINAD/SFDR/ENOB 用残差法另算：Deep_PGGB 305.8 dBc / 320.2 dBc / 51.5 bit，20 kHz 带内 307.3 dBc（51.8 bit）；原版 PGGB 的平稳区 307.4 dBc 与之不可区分，但按整段文件统计时它的最差一秒只有 183.6 dBc（首尾过渡区），Deep_PGGB 每一秒都在 305.6–307.4 dBc。
 > 贴在地板上的读数只能说明"低于测量能力"，而且**换了块长/精度就会摆动 4–5 dB**，
 > 谈不上排序；只有明显高于地板的才是真实失真（r8brain −283.8、sox_ng −186.6、SciPy −86.2）。
 >
@@ -215,7 +215,7 @@ Deep_PGGB 的分块长度/并行工作数/内存上限/首尾渐变/分块上下
 ## 论文与复现
 
 **《任意有理倍率的分块频域重采样方法——误差分解、流式扩展与八引擎对照》**
-22 页 / 9 图 / 6 表 / 25 条参考文献。
+25 页 / 10 图 / 6 表 / 26 条参考文献。
 
 - [论文 docx](work/paper/Deep_PGGB_paper.docx) · [论文 pdf](work/paper/Deep_PGGB_paper.pdf)
 - [学术评审](work/paper/REVIEW_academic.md) · [写作评审](work/paper/REVIEW_writing.md) · [闭环修改记录](work/paper/REVIEW_closed_loop.md)
