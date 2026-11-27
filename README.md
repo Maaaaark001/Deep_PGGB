@@ -1,7 +1,25 @@
-# SonarSRC · 多格式采样率工具箱
+# SonarSRC · Deep_PGGB —— 一个 SRC 工具箱与它的两条研究线
 
 [![repo](https://img.shields.io/badge/github-Deep_PGGB-2ea44f?logo=github)](https://github.com/Maaaaark001/Deep_PGGB)
 [![license](https://img.shields.io/badge/license-MIT-blue)](#许可与致谢)
+
+## 三个研究分支
+
+同一个仓库里有三条互不干扰、共用测量口径的研究线：
+
+| 分支 | 目录 | 一句话 | 文档 |
+|---|---|---|---|
+| **A · 算法与论文** | `deeppggb/` | 任意有理倍率的分块频域重采样引擎（C++/FFTW），以及它的论文管线 | [deeppggb/README.md](deeppggb/README.md) |
+| **B · SRC 工具箱** | `srctool/` + `app.py` | 多格式 SRC 工作台：八台引擎、参数全暴露、三段式质量结论 | 本文件（以下即分支 B 的说明） |
+| **C · 高精度测量** | `hpm/` | 任意精度音频测量：地板由什么决定、如何做不成为瓶颈的尺子、如何给出证书 | [hpm/README.md](hpm/README.md) |
+
+三条线的关系：**A 是被测对象，B 是它的工程出口，C 是用来判断 A 和 B 到底有多好的尺子。**
+三条线共用根目录 `AGENTS.md` 里的测量协议（§D6）与地板数据；产出物统一放在 `work/`
+（索引见 [work/README.md](work/README.md)）与 `hpm/reports/`。
+
+---
+
+## 分支 B：SRC 工具箱
 
 一个用 Python + NiceGUI 写的本地 SRC（Sample Rate Conversion）工作台：
 **输入任意格式 → 调参数重采样/转格式 → 对输入质量、输出质量、SRC 本身质量给出可解释的量化结论。**

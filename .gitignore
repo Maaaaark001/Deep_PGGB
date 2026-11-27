@@ -44,6 +44,25 @@ work/paper/pdf*.sh
 work/paper/urlcheck.sh
 work/paper/verify_png.sh
 
+# ---- 分支 C 论文（work/paper_hpm/）：保留源、构建脚本、最终 docx/pdf 与图 ----
+work/paper_hpm/_raw.docx
+work/paper_hpm/final.docx
+work/paper_hpm/final.pdf
+work/paper_hpm/pages/
+work/paper_hpm/_*
+
+# ---- 分支 C 论文的光栅化预览（_raster.py 可重造）----
+work/paper_cert/_pg/
+work/paper_cert/_*.png
+work/paper_hpm/_pg/
+
+# ---- 分支 C 夹具（make_fixtures.py 可重造）----
+# 引擎输出与阶梯用的中间音频都可由 deeppggb/dp_quad_probe.exe dump + run_ladder.py 重造，
+# 单份 22 MB，不入库。
+hpm/experiments/_*
+hpm/experiments/engine_out.f128
+deeppggb/_*.f128
+
 # ---- 本地素材与运行期临时目录 ----
 music/
 work/dec_*/

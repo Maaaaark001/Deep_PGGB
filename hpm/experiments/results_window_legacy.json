@@ -1,0 +1,296 @@
+[
+ {
+  "window": "rect",
+  "bits": 60,
+  "wls_db": 286.38197484047487,
+  "single_bin_db": 7.034220724329231
+ },
+ {
+  "window": "rect",
+  "bits": 90,
+  "wls_db": 467.00490942754664,
+  "single_bin_db": 7.034220724329294
+ },
+ {
+  "window": "rect",
+  "bits": 120,
+  "wls_db": 647.6156853311669,
+  "single_bin_db": 7.034220724329294
+ },
+ {
+  "window": "rect",
+  "bits": 180,
+  "wls_db": 1008.8566372586932,
+  "single_bin_db": 7.034220724329294
+ },
+ {
+  "window": "rect",
+  "bits": 240,
+  "wls_db": 1370.0898930539238,
+  "single_bin_db": 7.034220724329294
+ },
+ {
+  "window": "rect",
+  "bits": 360,
+  "wls_db": 2092.564230455675,
+  "single_bin_db": 7.034220724329294
+ },
+ {
+  "window": "rect",
+  "bits": 480,
+  "wls_db": 2815.02827034619,
+  "single_bin_db": 7.034220724329294
+ },
+ {
+  "window": "hann",
+  "bits": 60,
+  "wls_db": 287.269851551218,
+  "single_bin_db": 10.896524110124263
+ },
+ {
+  "window": "hann",
+  "bits": 90,
+  "wls_db": 467.90196553386096,
+  "single_bin_db": 10.896524110124405
+ },
+ {
+  "window": "hann",
+  "bits": 120,
+  "wls_db": 648.5024366543363,
+  "single_bin_db": 10.896524110124405
+ },
+ {
+  "window": "hann",
+  "bits": 180,
+  "wls_db": 1009.7487372231446,
+  "single_bin_db": 10.896524110124405
+ },
+ {
+  "window": "hann",
+  "bits": 240,
+  "wls_db": 1370.97956213683,
+  "single_bin_db": 10.896524110124405
+ },
+ {
+  "window": "hann",
+  "bits": 360,
+  "wls_db": 2093.4541867079347,
+  "single_bin_db": 10.896524110124405
+ },
+ {
+  "window": "hann",
+  "bits": 480,
+  "wls_db": 2815.923459583381,
+  "single_bin_db": 10.896524110124405
+ },
+ {
+  "window": "hamming",
+  "bits": 60,
+  "wls_db": 285.15947521248563,
+  "single_bin_db": 10.038160972573458
+ },
+ {
+  "window": "hamming",
+  "bits": 90,
+  "wls_db": 465.7721945176885,
+  "single_bin_db": 10.038160972573602
+ },
+ {
+  "window": "hamming",
+  "bits": 120,
+  "wls_db": 646.3927489681753,
+  "single_bin_db": 10.038160972573602
+ },
+ {
+  "window": "hamming",
+  "bits": 180,
+  "wls_db": 1007.6355668510864,
+  "single_bin_db": 10.038160972573602
+ },
+ {
+  "window": "hamming",
+  "bits": 240,
+  "wls_db": 1368.8673264595461,
+  "single_bin_db": 10.038160972573602
+ },
+ {
+  "window": "hamming",
+  "bits": 360,
+  "wls_db": 2091.3416860686734,
+  "single_bin_db": 10.038160972573602
+ },
+ {
+  "window": "hamming",
+  "bits": 480,
+  "wls_db": 2813.8080850659558,
+  "single_bin_db": 10.038160972573602
+ },
+ {
+  "window": "blackman",
+  "bits": 60,
+  "wls_db": 286.4034832363274,
+  "single_bin_db": 11.952760977081335
+ },
+ {
+  "window": "blackman",
+  "bits": 90,
+  "wls_db": 467.0273948720213,
+  "single_bin_db": 11.952760977081502
+ },
+ {
+  "window": "blackman",
+  "bits": 120,
+  "wls_db": 647.6487277062757,
+  "single_bin_db": 11.952760977081502
+ },
+ {
+  "window": "blackman",
+  "bits": 180,
+  "wls_db": 1008.8787980517056,
+  "single_bin_db": 11.952760977081502
+ },
+ {
+  "window": "blackman",
+  "bits": 240,
+  "wls_db": 1370.118534700714,
+  "single_bin_db": 11.952760977081502
+ },
+ {
+  "window": "blackman",
+  "bits": 360,
+  "wls_db": 2092.5909362800176,
+  "single_bin_db": 11.952760977081502
+ },
+ {
+  "window": "blackman",
+  "bits": 480,
+  "wls_db": 2815.060757382531,
+  "single_bin_db": 11.952760977081502
+ },
+ {
+  "window": "blackmanharris",
+  "bits": 60,
+  "wls_db": 285.6176026113376,
+  "single_bin_db": 13.147158327236589
+ },
+ {
+  "window": "blackmanharris",
+  "bits": 90,
+  "wls_db": 466.23732765513313,
+  "single_bin_db": 13.147158327236772
+ },
+ {
+  "window": "blackmanharris",
+  "bits": 120,
+  "wls_db": 646.8502847412252,
+  "single_bin_db": 13.147158327236772
+ },
+ {
+  "window": "blackmanharris",
+  "bits": 180,
+  "wls_db": 1008.086227038538,
+  "single_bin_db": 13.147158327236772
+ },
+ {
+  "window": "blackmanharris",
+  "bits": 240,
+  "wls_db": 1369.3277058702301,
+  "single_bin_db": 13.147158327236772
+ },
+ {
+  "window": "blackmanharris",
+  "bits": 360,
+  "wls_db": 2091.8006620252295,
+  "single_bin_db": 13.147158327236772
+ },
+ {
+  "window": "blackmanharris",
+  "bits": 480,
+  "wls_db": 2814.2706267149943,
+  "single_bin_db": 13.147158327236772
+ },
+ {
+  "window": "flattop",
+  "bits": 60,
+  "wls_db": 286.28739067887244,
+  "single_bin_db": 32.75958556965632
+ },
+ {
+  "window": "flattop",
+  "bits": 90,
+  "wls_db": 466.90863746133516,
+  "single_bin_db": 32.75958556967032
+ },
+ {
+  "window": "flattop",
+  "bits": 120,
+  "wls_db": 647.5267252899487,
+  "single_bin_db": 32.75958556967032
+ },
+ {
+  "window": "flattop",
+  "bits": 180,
+  "wls_db": 1008.7603660814331,
+  "single_bin_db": 32.75958556967032
+ },
+ {
+  "window": "flattop",
+  "bits": 240,
+  "wls_db": 1369.9950040538547,
+  "single_bin_db": 32.75958556967032
+ },
+ {
+  "window": "flattop",
+  "bits": 360,
+  "wls_db": 2092.471512430303,
+  "single_bin_db": 32.75958556967032
+ },
+ {
+  "window": "flattop",
+  "bits": 480,
+  "wls_db": 2814.94051361852,
+  "single_bin_db": 32.75958556967032
+ },
+ {
+  "window": "nuttall",
+  "bits": 60,
+  "wls_db": 285.5763473256603,
+  "single_bin_db": 13.218479014518019
+ },
+ {
+  "window": "nuttall",
+  "bits": 90,
+  "wls_db": 466.1947866170722,
+  "single_bin_db": 13.218479014518193
+ },
+ {
+  "window": "nuttall",
+  "bits": 120,
+  "wls_db": 646.812795119696,
+  "single_bin_db": 13.218479014518193
+ },
+ {
+  "window": "nuttall",
+  "bits": 180,
+  "wls_db": 1008.0427647850418,
+  "single_bin_db": 13.218479014518193
+ },
+ {
+  "window": "nuttall",
+  "bits": 240,
+  "wls_db": 1369.2864153179546,
+  "single_bin_db": 13.218479014518193
+ },
+ {
+  "window": "nuttall",
+  "bits": 360,
+  "wls_db": 2091.759928916072,
+  "single_bin_db": 13.218479014518193
+ },
+ {
+  "window": "nuttall",
+  "bits": 480,
+  "wls_db": 2814.230465272554,
+  "single_bin_db": 13.218479014518193
+ }
+]

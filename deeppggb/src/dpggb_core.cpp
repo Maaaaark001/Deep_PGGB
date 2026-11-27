@@ -15,6 +15,11 @@
 //      only each block interior, so the tapered context is discarded.
 
 #include "dpggb.h"
+#ifdef DPGGB_QUAD
+#include "quad_fft.h"
+
+#include <quadmath.h>
+#endif
 
 #include <fftw3.h>
 
@@ -37,6 +42,7 @@
 
 #include <thread>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 namespace dpggb {
@@ -102,6 +108,67 @@ template <> struct Fftw<long double> {
     static void with_threads(int n) { fftwl_plan_with_nthreads(n); }
 };
 
+#ifdef DPGGB_QUAD
+// IEEE binary128. FFTW has no quad transform (fftwl is x87 80-bit), so this
+// drives the mixed-radix __float128 FFT in quad_fft.h. The plan is read-only
+// during execution and each thread keeps its own buffers, so one plan serves
+// every block worker exactly like the FFTW plans do.
+struct QuadPlan {
+    dpq::Plan fft;
+    bool forward = true;
+    const __float128* rin = nullptr;
+    dpq::QC* hout = nullptr;
+    const dpq::QC* hin = nullptr;
+    __float128* rout = nullptr;
+};
+
+template <> struct Fftw<__float128> {
+    using plan = QuadPlan*;
+    using cplx = dpq::QC;
+    static void* alloc(size_t n) {
+#ifdef _WIN32
+        return _aligned_malloc(n ? n : 64, 64);
+#else
+        const size_t a = 64;
+        const size_t m = (n + a - 1) / a * a;
+        return std::aligned_alloc(a, m ? m : a);
+#endif
+    }
+    static void free(void* p) {
+#ifdef _WIN32
+        _aligned_free(p);
+#else
+        std::free(p);
+#endif
+    }
+    static plan r2c(int n, __float128* in, cplx* out) {
+        QuadPlan* p = new QuadPlan;
+        p->fft = dpq::make_plan(n);
+        p->forward = true;
+        p->rin = in;
+        p->hout = out;
+        return p;
+    }
+    static plan c2r(int n, cplx* in, __float128* out) {
+        QuadPlan* p = new QuadPlan;
+        p->fft = dpq::make_plan(n);
+        p->forward = false;
+        p->hin = in;
+        p->rout = out;
+        return p;
+    }
+    static void exec(plan p) {
+        if (p->forward) dpq::fft_r2c(p->fft, p->rin, p->hout);
+        else dpq::fft_c2r(p->fft, p->hin, p->rout);
+    }
+    static void exec_r2c(plan p, __float128* i, cplx* o) { dpq::fft_r2c(p->fft, i, o); }
+    static void exec_c2r(plan p, cplx* i, __float128* o) { dpq::fft_c2r(p->fft, i, o); }
+    static void destroy(plan p) { delete p; }
+    static void init_threads() {}
+    static void with_threads(int) {}
+};
+#endif  // DPGGB_QUAD
+
 // FFTW plan creation is not thread-safe. Every path that creates a plan must
 // hold this lock; execution is safe to run concurrently. The block workers
 // used to create plans in fir_causal() without it, which is a race that only
@@ -149,6 +216,13 @@ template <> struct Wisdom<double> {
 template <> struct Wisdom<long double> {
     static int load(const char* f) { return fftwl_import_wisdom_from_filename(f); }
 };
+#ifdef DPGGB_QUAD
+// No FFTW plan exists for binary128, so there is no wisdom to import. The
+// twiddle table is deterministic and cheap relative to one block.
+template <> struct Wisdom<__float128> {
+    static int load(const char*) { return 0; }
+};
+#endif
 
 inline std::string module_dir() {
 #ifdef _WIN32
@@ -300,9 +374,49 @@ inline double binom(int n, int k) {
     return r;
 }
 
+#ifdef DPGGB_QUAD
+constexpr __float128 kPiQ =
+    3.14159265358979323846264338327950288419716939937510582097494459Q;
+#endif
+
 template <typename R>
 R taper_weight(long long i, long long n, int shape) {
     if (n <= 1) return (R) 1;
+#ifdef DPGGB_QUAD
+    // The quad path has to evaluate the window itself: computing it in double
+    // and widening the result would put a -320 dB error on the signal, which
+    // is exactly the floor this path is meant to get below.
+    if constexpr (std::is_same_v<R, __float128>) {
+        const __float128 t = (__float128) i / (__float128) (n - 1);
+        switch (shape) {
+            case TAPER_COS: return (R) 0.5 - (R) 0.5 * cosq(kPiQ * t);
+            case TAPER_BLACKMAN:
+                return (R) 0.42 - (R) 0.5 * cosq(kPiQ * t) + (R) 0.08 * cosq(2 * kPiQ * t);
+            case TAPER_SMOOTH:
+                return (R) (t * t * t * (t * (t * 6 - 15) + 10));
+            case TAPER_SMOOTH4:
+            case TAPER_SMOOTH5:
+            case TAPER_SMOOTH6:
+            case TAPER_SMOOTH7:
+            case TAPER_SMOOTH8:
+            case TAPER_SMOOTH10:
+            case TAPER_SMOOTH12: {
+                const int order = shape;
+                const __float128 u = t <= 0.5Q ? t : 1 - t;
+                __float128 acc = 0;
+                for (int k = 0; k <= order; ++k) {
+                    const __float128 uk = powq(u, k);
+                    acc += (__float128) binom(order + k, k)
+                         * (__float128) binom(2 * order + 1, order - k)
+                         * ((k & 1) ? -uk : uk);
+                }
+                const __float128 w = powq(u, order + 1) * acc;
+                return t <= 0.5Q ? w : 1 - w;
+            }
+            default: return (R) 1;
+        }
+    }
+#endif
     const double t = (double) i / (double) (n - 1);
     switch (shape) {
         case TAPER_COS: return (R) (0.5 - 0.5 * std::cos(kPi * t));
@@ -318,8 +432,12 @@ R taper_weight(long long i, long long n, int shape) {
         // t close to 1 loses ~7 digits, which is exactly the leakage being fought.
         case TAPER_SMOOTH4:
         case TAPER_SMOOTH5:
-        case TAPER_SMOOTH6: {
-            const int order = shape;                    // 4, 5 or 6
+        case TAPER_SMOOTH6:
+        case TAPER_SMOOTH7:
+        case TAPER_SMOOTH8:
+        case TAPER_SMOOTH10:
+        case TAPER_SMOOTH12: {
+            const int order = shape;                    // 4, 5, 6, 7, 8, 10 or 12
             const double u = t <= 0.5 ? t : 1.0 - t;
             double acc = 0.0;
             for (int k = 0; k <= order; ++k) {
@@ -493,6 +611,21 @@ void convert_block(const R* x, long long n, const Ratio& r, long long P, int thr
     // -220 dB at the same width while keeping the passband flat to 21.9 kHz -
     // better than sox_ng on both axes at once (measured: alias -220 vs -209 dB,
     // 21.9 kHz 0.00 vs -17.5 dB).
+#ifdef DPGGB_QUAD
+    if constexpr (std::is_same_v<R, __float128>) {
+        // Same shape, evaluated in quad: a double-rounded weight would again
+        // cap the result at roughly the float64 floor.
+        for (long long i = edge; i < keep; ++i) {
+            const __float128 t = (__float128) (i - edge) / (__float128) roll_bins;
+            const __float128 c = 0.5Q * (1 + cosq(kPiQ * t));
+            __float128 w = c;
+            for (int k = 1; k < roll_order; ++k) w *= c;
+            sc.spec[i][0] = sc.spec[i][0] * w;
+            sc.spec[i][1] = sc.spec[i][1] * w;
+        }
+    } else
+#endif
+    {
     for (long long i = edge; i < keep; ++i) {
         const double t = (double) (i - edge) / (double) roll_bins;
         const double c = 0.5 * (1.0 + std::cos(3.14159265358979323846 * t));
@@ -505,6 +638,7 @@ void convert_block(const R* x, long long n, const Ratio& r, long long P, int thr
         sc.spec[i][0] = (R) (sc.spec[i][0] * w);
         sc.spec[i][1] = (R) (sc.spec[i][1] * w);
     }
+    }
     for (int i = (int) keep; i < nc_out; ++i) {
         sc.spec[i][0] = (R) 0;
         sc.spec[i][1] = (R) 0;
@@ -512,7 +646,8 @@ void convert_block(const R* x, long long n, const Ratio& r, long long P, int thr
 
     Fftw<R>::exec_c2r(pp.c2r, sc.spec, sc.out);
     // FFTW inverse transforms are unnormalised; /P restores unit passband gain.
-    const R norm = (R) (1.0 / (double) P);
+    const R norm = std::is_same_v<R, __float128> ? (R) 1 / (R) P
+                                                   : (R) (1.0 / (double) P);
     out.resize((size_t) Q);   // every element is written below
     for (long long i = 0; i < Q; ++i) out[(size_t) i] = sc.out[i] * norm;
 }
@@ -822,6 +957,19 @@ std::vector<double> resample_channel(const double* x, size_t n, const Cfg& cfg,
         for (size_t i = 0; i < y.size(); ++i) d[i] = (double) y[i];
         return d;
     }
+#ifdef DPGGB_QUAD
+    if (cfg.precision == 2) {
+        // Convenience path only: widening a float64 input cannot recover the
+        // samples' own quantisation, and narrowing the output puts the float64
+        // floor straight back. Use resample_channel_q for a real quad test.
+        std::vector<__float128> t((size_t) n);
+        for (size_t i = 0; i < n; ++i) t[i] = (__float128) x[i];
+        std::vector<__float128> y = resample_typed<__float128>(t.data(), n, cfg, r);
+        std::vector<double> d(y.size());
+        for (size_t i = 0; i < y.size(); ++i) d[i] = (double) y[i];
+        return d;
+    }
+#endif
     return resample_typed<double>(x, n, cfg, r);
 }
 
@@ -829,6 +977,13 @@ std::vector<long double> resample_channel_ld(const long double* x, size_t n, con
                                              const Ratio& r) {
     return resample_typed<long double>(x, n, cfg, r);
 }
+
+#ifdef DPGGB_QUAD
+std::vector<__float128> resample_channel_q(const __float128* x, size_t n, const Cfg& cfg,
+                                           const Ratio& r) {
+    return resample_typed<__float128>(x, n, cfg, r);
+}
+#endif
 
 // ------------------------------------------------------------------
 // Quantisation with error-feedback noise shaping.

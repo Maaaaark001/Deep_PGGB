@@ -18,7 +18,9 @@ namespace dpggb {
 // level deposited at 22.05 kHz is -272 dB for order 2 and -360 dB for order 5,
 // which is the difference between a 250 dB and a 303 dB null.
 enum TaperShape { TAPER_NONE = 0, TAPER_COS = 1, TAPER_SMOOTH = 2, TAPER_BLACKMAN = 3,
-                  TAPER_SMOOTH4 = 4, TAPER_SMOOTH5 = 5, TAPER_SMOOTH6 = 6 };
+                  TAPER_SMOOTH4 = 4, TAPER_SMOOTH5 = 5, TAPER_SMOOTH6 = 6,
+                  TAPER_SMOOTH7 = 7, TAPER_SMOOTH8 = 8, TAPER_SMOOTH10 = 10,
+                  TAPER_SMOOTH12 = 12 };
 enum PhaseMode { PHASE_LINEAR = 0, PHASE_MIN = 1 };
 enum NoiseShape { NS_NONE = 0, NS_SHIBATA = 1 };
 
@@ -58,8 +60,19 @@ struct Cfg {
     // one spreads them into the transition band where a near-Nyquist tone
     // survives. Context stays long so the response has room to decay.
     double block_taper_ms = 20.0;
-    int taper_shape = TAPER_SMOOTH5;  // order 5; see TaperShape above
-    int precision = 0;         // 0 = double, 1 = long double
+    // Order 12, not 5. The taper is a multiplier, so its own spectrum is
+    // convolved with the signal: a low order leaves sidelobes that land inside
+    // the output band and cap the null. Measured at 16 s, 1 kHz, 44.1 -> 88.2,
+    // binary128, with the 20 ms lengths unchanged: order 5 gives 440.2 dB,
+    // order 6 451.2, 7 516.5, 8 528.4, 10 601.7, 12 665.3, and 665-666 is the
+    // round-trip ceiling of the quad transform itself. Order 12 also lifts a
+    // 19 kHz tone in float64 from 293.3 to 306.5 dB, i.e. onto the float64
+    // floor, so this is not a quad-only setting.
+    int taper_shape = TAPER_SMOOTH12;
+    // 0 = double, 1 = long double (x87 80-bit on this toolchain, 64-bit
+    // mantissa), 2 = quad (IEEE binary128, 113-bit mantissa). "long double"
+    // is NOT binary128 on Windows: sizeof is 16 but only 64 bits are used.
+    int precision = 0;
     int phase = PHASE_LINEAR;
     int threads = 0;           // 0 = auto (FFTW threads inside one transform)
     int workers = 0;           // 0 = auto (blocks processed concurrently)
@@ -85,6 +98,13 @@ std::vector<double> resample_channel(const double* x, size_t n, const Cfg& cfg,
                                      const Ratio& r);
 std::vector<long double> resample_channel_ld(const long double* x, size_t n, const Cfg& cfg,
                                              const Ratio& r);
+#ifdef DPGGB_QUAD
+// IEEE binary128 path. FFTW has no quad transform, so this uses the
+// mixed-radix __float128 FFT in quad_fft.h. Input and output are quad, which
+// is the only way the arithmetic floor can sit below the float64 one.
+std::vector<__float128> resample_channel_q(const __float128* x, size_t n, const Cfg& cfg,
+                                           const Ratio& r);
+#endif
 
 // Quantise float64 to integer PCM with optional error-feedback noise shaping.
 // Returns interleaved integer samples as int32 (value already scaled to the target depth).
