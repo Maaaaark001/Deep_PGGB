@@ -60,10 +60,10 @@ PRESETS: list[Preset] = [
         "**支持任意有理倍率**（44.1→48、96→44.1 都行），这是 PGGB 做不到的。"
         "杂散 −306 dBc、混叠抑制 −348 dBc（都贴住各自的分析地板），"
         "通带到 21.5 kHz 全平，代价只是 21.9 kHz 起的一小段过渡带。"
-        "文件首尾各牺牲 20 ms 做渐变（20 ms 即饱和）；上下文 800 ms 是为了把"
+        "文件首尾各牺牲 20 ms 做渐变（12 阶 smootherstep，20 ms 即饱和）；上下文 800 ms 是为了把"
         "升采样的镜像频带压到地板，比 400 ms 慢约两成但仍有 PGGB 的 4 倍以上。",
         "dpggb", {"block": 16.0, "context": 800.0, "btaper": 20.0, "rolloff": 200.0,
-                  "rollorder": 2, "fade": 20.0, "taper": "smooth5",
+                  "rollorder": 2, "fade": 20.0, "taper": "smooth12",
                   "prec": "double", "phase": "linear"},
         fmt="wav", bits=24, tag="推荐",
     ),
@@ -73,7 +73,7 @@ PRESETS: list[Preset] = [
         "瞬态（鼓、拨弦）听起来更紧。代价是必须在奈奎斯特下方留过渡带，"
         "所以 22 kHz 附近会提前一点滚降 —— 用测量指标换听感。",
         "dpggb", {"block": 16.0, "context": 800.0, "btaper": 20.0, "rolloff": 200.0,
-                  "rollorder": 2, "fade": 20.0, "taper": "smooth5",
+                  "rollorder": 2, "fade": 20.0, "taper": "smooth12",
                   "prec": "double", "phase": "min"},
         fmt="wav", bits=24,
     ),

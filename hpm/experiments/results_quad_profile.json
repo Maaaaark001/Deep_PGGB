@@ -1,0 +1,450 @@
+{
+ "meta": {
+  "engine": "Deep_PGGB, precision selector 2 (binary128 / __float128)",
+  "build": "taper_shape = TAPER_SMOOTH12, block_taper_ms = 20, taper_ms = 20, context_ms = 800, rolloff 200 Hz, workers 0",
+  "stimulus": "16 s, integer-cycle sine, amplitude 0.5 unless noted, generated in quad",
+  "analyser": "quad projection + two residual re-projections; 1 s windows every 0.25 s for SINAD/SFDR",
+  "date": "2026-11-28",
+  "multitone_fit": "DC + all tones, two residual re-projection rounds (DPQ_REFINE=2)"
+ },
+ "freq_sweep": [
+  {
+   "f": 20,
+   "settled": 665.64,
+   "worst": 665.1,
+   "sfdr": 675.59,
+   "enob": 111.288
+  },
+  {
+   "f": 100,
+   "settled": 665.22,
+   "worst": 663.1,
+   "sfdr": 678.26,
+   "enob": 111.19
+  },
+  {
+   "f": 500,
+   "settled": 665.32,
+   "worst": 664.44,
+   "sfdr": 679.52,
+   "enob": 111.218
+  },
+  {
+   "f": 1000,
+   "settled": 666.1,
+   "worst": 662.35,
+   "sfdr": 676.85,
+   "enob": 111.347
+  },
+  {
+   "f": 2000,
+   "settled": 665.67,
+   "worst": 664.44,
+   "sfdr": 676.59,
+   "enob": 111.276
+  },
+  {
+   "f": 3000,
+   "settled": 662.82,
+   "worst": 653.53,
+   "sfdr": 664.34,
+   "enob": 110.724
+  },
+  {
+   "f": 4000,
+   "settled": 665.71,
+   "worst": 657.86,
+   "sfdr": 678.56,
+   "enob": 111.279
+  },
+  {
+   "f": 5000,
+   "settled": 657.27,
+   "worst": 640.51,
+   "sfdr": 657.34,
+   "enob": 109.802
+  },
+  {
+   "f": 6000,
+   "settled": 650.51,
+   "worst": 640.5,
+   "sfdr": 649.98,
+   "enob": 108.658
+  },
+  {
+   "f": 8000,
+   "settled": 644.66,
+   "worst": 623.79,
+   "sfdr": 644.49,
+   "enob": 107.758
+  },
+  {
+   "f": 10000,
+   "settled": 613.85,
+   "worst": 603.78,
+   "sfdr": 613.19,
+   "enob": 102.563
+  },
+  {
+   "f": 12000,
+   "settled": 604.82,
+   "worst": 582.98,
+   "sfdr": 604.72,
+   "enob": 101.159
+  },
+  {
+   "f": 15000,
+   "settled": 550.97,
+   "worst": 541.42,
+   "sfdr": 550.19,
+   "enob": 92.098
+  },
+  {
+   "f": 18000,
+   "settled": 508.87,
+   "worst": 497.45,
+   "sfdr": 508.16,
+   "enob": 85.115
+  },
+  {
+   "f": 19000,
+   "settled": 453.64,
+   "worst": 443.87,
+   "sfdr": 452.86,
+   "enob": 75.929
+  },
+  {
+   "f": 20000,
+   "settled": 413.95,
+   "worst": 388.69,
+   "sfdr": 413.18,
+   "enob": 69.34
+  },
+  {
+   "f": 21000,
+   "settled": 325.8,
+   "worst": 301.23,
+   "sfdr": 325.17,
+   "enob": 54.695
+  }
+ ],
+ "null_mode": [
+  {
+   "f": 200,
+   "null_db": 665.86
+  },
+  {
+   "f": 300,
+   "null_db": 664.35
+  },
+  {
+   "f": 3000,
+   "null_db": 659.46
+  },
+  {
+   "f": 3500,
+   "null_db": 659.49
+  },
+  {
+   "f": 19000,
+   "null_db": 449.72
+  }
+ ],
+ "rates": [
+  {
+   "pair": "44.1 -> 48",
+   "settled": 664.98,
+   "worst": 663.79,
+   "sfdr": 676.56,
+   "enob": 111.176
+  },
+  {
+   "pair": "44.1 -> 88.2",
+   "settled": 666.1,
+   "worst": 662.35,
+   "sfdr": 676.85,
+   "enob": 111.347
+  },
+  {
+   "pair": "44.1 -> 96",
+   "settled": 665.01,
+   "worst": 663.83,
+   "sfdr": 676.59,
+   "enob": 111.182
+  },
+  {
+   "pair": "44.1 -> 176.4",
+   "settled": 665.74,
+   "worst": 662.25,
+   "sfdr": 676.9,
+   "enob": 111.28
+  },
+  {
+   "pair": "48 -> 96",
+   "settled": 666.14,
+   "worst": 665.77,
+   "sfdr": 677.39,
+   "enob": 111.361
+  },
+  {
+   "pair": "96 -> 44.1",
+   "settled": 667.09,
+   "worst": 666.5,
+   "sfdr": 676.76,
+   "enob": 111.517
+  }
+ ],
+ "level_sweep": [
+  {
+   "amp": 0.5,
+   "amp_db": -6.02,
+   "settled": 666.1,
+   "sfdr": 676.85,
+   "enob": 111.347
+  },
+  {
+   "amp": 0.25,
+   "amp_db": -12.04,
+   "settled": 666.1,
+   "sfdr": 676.85,
+   "enob": 112.347
+  },
+  {
+   "amp": 0.1,
+   "amp_db": -20,
+   "settled": 666.02,
+   "sfdr": 676.89,
+   "enob": 113.641
+  },
+  {
+   "amp": 0.01,
+   "amp_db": -40,
+   "settled": 665.62,
+   "sfdr": 675.17,
+   "enob": 116.895
+  },
+  {
+   "amp": 0.001,
+   "amp_db": -60,
+   "settled": 665.74,
+   "sfdr": 676.85,
+   "enob": 120.252
+  }
+ ],
+ "even_odd": {
+  "f": 1000,
+  "even_db": 666.85,
+  "odd_db": 664.01
+ },
+ "harmonics_images": [
+  {
+   "f": 1000,
+   "h2": -690.76,
+   "h3": -712.35,
+   "img_lo": -712.2,
+   "img_hi": -711.99,
+   "prec": 2
+  },
+  {
+   "f": 5000,
+   "h2": -693.61,
+   "h3": -701.04,
+   "img_lo": -712.99,
+   "img_hi": -713.99,
+   "prec": 2
+  },
+  {
+   "f": 15000,
+   "h2": -662.2,
+   "h3": -667.62,
+   "img_lo": -661.29,
+   "img_hi": -661.24,
+   "prec": 2
+  },
+  {
+   "f": 19000,
+   "h2": -569.31,
+   "h3": -565.82,
+   "img_lo": -556.83,
+   "img_hi": -556.83,
+   "prec": 2
+  },
+  {
+   "f": 1000,
+   "h2": -351.58,
+   "h3": -358.82,
+   "img_lo": -334.25,
+   "img_hi": -334.25,
+   "prec": 0
+  }
+ ],
+ "imd": [
+  {
+   "pair": "19k + 20k",
+   "f1": 19000,
+   "f2": 20000,
+   "tone_db": -12.04,
+   "prod": [
+    {
+     "name": "2f1-f2",
+     "f": 18000,
+     "db": -520.69
+    },
+    {
+     "name": "2f2-f1",
+     "f": 21000,
+     "db": -509.07
+    },
+    {
+     "name": "f2-f1",
+     "f": 1000,
+     "db": -531.58
+    },
+    {
+     "name": "f1+f2",
+     "f": 39000,
+     "db": -531.02
+    },
+    {
+     "name": "3f1",
+     "f": 57000,
+     "db": -527.26
+    },
+    {
+     "name": "3f2",
+     "f": 60000,
+     "db": -524.16
+    }
+   ]
+  },
+  {
+   "pair": "1k + 1.7k",
+   "f1": 1000,
+   "f2": 1700,
+   "tone_db": -12.04,
+   "prod": [
+    {
+     "name": "2f1-f2",
+     "f": 300,
+     "db": -710.4
+    },
+    {
+     "name": "2f2-f1",
+     "f": 2400,
+     "db": -703.69
+    },
+    {
+     "name": "f2-f1",
+     "f": 700,
+     "db": -699.8
+    },
+    {
+     "name": "f1+f2",
+     "f": 2700,
+     "db": -704.6
+    },
+    {
+     "name": "3f1",
+     "f": 3000,
+     "db": -702.38
+    },
+    {
+     "name": "3f2",
+     "f": 5100,
+     "db": -711.85
+    }
+   ]
+  }
+ ],
+ "multitone": [
+  {
+   "ntone": 1,
+   "step": 500,
+   "start": 200,
+   "null": 666.2,
+   "top": 200
+  },
+  {
+   "ntone": 2,
+   "step": 500,
+   "start": 200,
+   "null": 666.03,
+   "top": 700
+  },
+  {
+   "ntone": 4,
+   "step": 500,
+   "start": 200,
+   "null": 654.28,
+   "top": 1700
+  },
+  {
+   "ntone": 8,
+   "step": 500,
+   "start": 200,
+   "null": 649.46,
+   "top": 3700
+  },
+  {
+   "ntone": 16,
+   "step": 500,
+   "start": 200,
+   "null": 644.75,
+   "top": 7700
+  },
+  {
+   "ntone": 40,
+   "step": 500,
+   "start": 200,
+   "null": 439.12,
+   "top": 19700
+  },
+  {
+   "ntone": 40,
+   "step": 100,
+   "start": 200,
+   "null": 650.04,
+   "top": 4100
+  },
+  {
+   "ntone": 40,
+   "step": 100,
+   "start": 15000,
+   "null": 470.18,
+   "top": 18900
+  },
+  {
+   "ntone": 4,
+   "step": 100,
+   "start": 200,
+   "null": 662.16,
+   "top": 500
+  },
+  {
+   "ntone": 4,
+   "step": 100,
+   "start": 15000,
+   "null": 548.65,
+   "top": 15300
+  },
+  {
+   "ntone": 20,
+   "step": 1000,
+   "start": 200,
+   "null": 473.45,
+   "top": 19200
+  },
+  {
+   "ntone": 4,
+   "step": 5000,
+   "start": 200,
+   "null": 574.24,
+   "top": 15200
+  }
+ ],
+ "speed_60s_stereo_44_1_to_88_2": {
+  "quad": 2.03,
+  "long_double": 53.37,
+  "double": 91
+ }
+}

@@ -69,14 +69,8 @@ dpggb::Cfg make_cfg(const std::string& o, double in_rate, double out_rate, int c
     cfg.block_taper_ms = opt_num(o, "btaper", 20.0);
     cfg.threads = (int) opt_num(o, "threads", 0.0);
     cfg.workers = (int) opt_num(o, "workers", 0.0);
-    const std::string taper = opt_str(o, "taper", "smooth");
-    cfg.taper_shape = taper == "none" ? dpggb::TAPER_NONE
-                    : taper == "cos"  ? dpggb::TAPER_COS
-                    : taper == "blackman" ? dpggb::TAPER_BLACKMAN
-                    : taper == "smooth2" ? dpggb::TAPER_SMOOTH
-                    : taper == "smooth4" ? dpggb::TAPER_SMOOTH4
-                    : taper == "smooth6" ? dpggb::TAPER_SMOOTH6
-                                          : dpggb::TAPER_SMOOTH5;
+    cfg.edge_taper_ms = opt_num(o, "edgefade", 0.0);
+    cfg.taper_shape = dpggb::taper_from_name(opt_str(o, "taper", "smooth12"));
     cfg.precision = opt_str(o, "prec", "double") == "long" ? 1 : 0;
     cfg.phase = opt_str(o, "phase", "linear") == "min" ? dpggb::PHASE_MIN
                                                        : dpggb::PHASE_LINEAR;

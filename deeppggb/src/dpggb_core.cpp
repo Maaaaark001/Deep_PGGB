@@ -400,7 +400,9 @@ R taper_weight(long long i, long long n, int shape) {
             case TAPER_SMOOTH7:
             case TAPER_SMOOTH8:
             case TAPER_SMOOTH10:
-            case TAPER_SMOOTH12: {
+            case TAPER_SMOOTH12:
+            case TAPER_SMOOTH16:
+            case TAPER_SMOOTH20: {
                 const int order = shape;
                 const __float128 u = t <= 0.5Q ? t : 1 - t;
                 __float128 acc = 0;
@@ -436,8 +438,10 @@ R taper_weight(long long i, long long n, int shape) {
         case TAPER_SMOOTH7:
         case TAPER_SMOOTH8:
         case TAPER_SMOOTH10:
-        case TAPER_SMOOTH12: {
-            const int order = shape;                    // 4, 5, 6, 7, 8, 10 or 12
+        case TAPER_SMOOTH12:
+        case TAPER_SMOOTH16:
+        case TAPER_SMOOTH20: {
+            const int order = shape;                    // 4..20, smootherstep of that order
             const double u = t <= 0.5 ? t : 1.0 - t;
             double acc = 0.0;
             for (int k = 0; k <= order; ++k) {
@@ -752,7 +756,8 @@ std::vector<R> resample_typed(const R* x, size_t n, const Cfg& cfg, const Ratio&
     if (cfg.in_rate == cfg.out_rate) return std::vector<R>(x, x + n);
 
     const int threads = cfg.threads > 0 ? cfg.threads : 0;
-    long long fade = std::max<long long>(1, (long long) (cfg.taper_ms * 0.001 * cfg.in_rate));
+    const double fade_ms = cfg.edge_taper_ms > 0.0 ? cfg.edge_taper_ms : cfg.taper_ms;
+    long long fade = std::max<long long>(1, (long long) (fade_ms * 0.001 * cfg.in_rate));
     // On a short file a long fade would eat the material itself: a 0.5 s clip
     // with a 100 ms fade is 40% attenuated. Cap it at 5% of the input so the
     // default stays safe for one-shot samples and stingers.
@@ -911,7 +916,15 @@ std::vector<R> resample_typed(const R* x, size_t n, const Cfg& cfg, const Ratio&
             const long long idx = start - T + i;
             block[(size_t) i] = (idx >= 0 && idx < (long long) n) ? src[(size_t) idx] : (R) 0;
         }
-        long long bt = (long long) (cfg.block_taper_ms * 0.001 * cfg.in_rate);
+        // The block taper and the file fade are both applied to the same samples
+        // at the file's outer edges, so the effective edge window is their
+        // PRODUCT -- i.e. the shorter of the two. Raising taper_ms alone used to
+        // buy nothing because a 20 ms block taper multiplied it straight back
+        // down: 19 kHz measured 453.2 dB at fade 480 / bt 20, 458.1 at fade 20 /
+        // bt 480, and 666.1 only when both were 480. Keep the block taper at
+        // least as long as the fade so the fade knob means what it says.
+        const double bt_ms = std::max(cfg.block_taper_ms, cfg.edge_taper_ms > 0.0 ? cfg.edge_taper_ms : cfg.taper_ms);
+        long long bt = (long long) (bt_ms * 0.001 * cfg.in_rate);
         if (bt < 1) bt = 1;
         if (bt > T) bt = T;
         convert_block<R>(block.data(), P, r, P, fft_threads, (int) bt, cfg.taper_shape, cfg.phase,

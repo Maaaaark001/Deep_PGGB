@@ -85,7 +85,9 @@ static void usage(const char* a0) {
     fprintf(stderr, "  --rolloff HZ    transition band below Nyquist (default 200, 0 = brick wall)\n");
     fprintf(stderr, "  --rollorder N   rolloff shape exponent (default 2 = squared cosine)\n");
     fprintf(stderr, "  --btaper MS     block-edge taper length (default 20)\n");
-    fprintf(stderr, "  --taper SHAPE   smooth5 | smooth4 | smooth6 | smooth2 | cos | blackman | none\n");
+    fprintf(stderr, "  --edgefade MS   head/tail fade, 0 = --fade (default 0; see the note in dpggb.h)\n");
+    fprintf(stderr, "  --taper SHAPE   smooth12 (default) | smooth10 | smooth8 | smooth7 | smooth6 | smooth5 |\n"
+                    "                  smooth4 | smooth2 | cos | blackman | none\n");
     fprintf(stderr, "  --prec P        double | long\n");
     fprintf(stderr, "  --phase PH      linear | min\n");
     fprintf(stderr, "  --threads N     FFT threads inside one transform (0 = auto)\n");
@@ -117,16 +119,8 @@ int main(int argc, char** argv) {
         else if (k == "--rolloff") cfg.rolloff_hz = atof(v);
         else if (k == "--rollorder") cfg.roll_order = std::max(1, atoi(v));
         else if (k == "--btaper") cfg.block_taper_ms = atof(v);
-        else if (k == "--taper") {
-            const std::string s = v;
-            cfg.taper_shape = s == "none" ? dpggb::TAPER_NONE
-                            : s == "cos" ? dpggb::TAPER_COS
-                            : s == "blackman" ? dpggb::TAPER_BLACKMAN
-                            : s == "smooth2" ? dpggb::TAPER_SMOOTH
-                            : s == "smooth4" ? dpggb::TAPER_SMOOTH4
-                            : s == "smooth6" ? dpggb::TAPER_SMOOTH6
-                            : dpggb::TAPER_SMOOTH5;   // "smooth" and "smooth5"
-        }
+        else if (k == "--taper") cfg.taper_shape = dpggb::taper_from_name(v);
+        else if (k == "--edgefade") cfg.edge_taper_ms = atof(v);
         else if (k == "--prec") cfg.precision = std::string(v) == "long" ? 1 : 0;
         else if (k == "--phase") cfg.phase = std::string(v) == "min" ? dpggb::PHASE_MIN : dpggb::PHASE_LINEAR;
         else if (k == "--threads") cfg.threads = atoi(v);

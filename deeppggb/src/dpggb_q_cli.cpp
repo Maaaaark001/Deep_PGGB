@@ -65,7 +65,9 @@ int main(int argc, char** argv) {
             "  --block SEC     block length in seconds (default 16, 0 = whole file)\n"
             "  --context MS    block context (default 800)\n"
             "  --btaper MS     block-edge taper (default 20)\n"
-            "  --taper SHAPE   smooth4 | smooth5 | smooth6 | smooth2 | cos | blackman | none\n"
+            "  --edgefade MS   head/tail fade, 0 = 20 (default 0)\n"
+            "  --taper SHAPE   smooth12 (default) | smooth10 | smooth8 | smooth7 | smooth6 |\n"
+            "                  smooth5 | smooth4 | smooth2 | cos | blackman | none\n"
             "  --rolloff HZ    transition band (default 200)\n"
             "  --workers N     block workers (0 = auto)\n"
             "  --in FMT        f128 | f64 (default f128)\n"
@@ -90,16 +92,8 @@ int main(int argc, char** argv) {
         else if (k == "--in") in_f64 = std::string(v) == "f64";
         else if (k == "--out") out_f64 = std::string(v) == "f64";
         else if (k == "--bench") bench = std::max(1, std::atoi(v));
-        else if (k == "--taper") {
-            const std::string s = v;
-            cfg.taper_shape = s == "none" ? dpggb::TAPER_NONE
-                            : s == "cos" ? dpggb::TAPER_COS
-                            : s == "blackman" ? dpggb::TAPER_BLACKMAN
-                            : s == "smooth2" ? dpggb::TAPER_SMOOTH
-                            : s == "smooth4" ? dpggb::TAPER_SMOOTH4
-                            : s == "smooth6" ? dpggb::TAPER_SMOOTH6
-                            : dpggb::TAPER_SMOOTH5;
-        } else { std::fprintf(stderr, "unknown option %s\n", k.c_str()); return 1; }
+        else if (k == "--taper") cfg.taper_shape = dpggb::taper_from_name(v);
+        else if (k == "--edgefade") cfg.edge_taper_ms = std::atof(v); else { std::fprintf(stderr, "unknown option %s\n", k.c_str()); return 1; }
     }
     if (cfg.channels < 1) cfg.channels = 1;
     cfg.precision = 2;

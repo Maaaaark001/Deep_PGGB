@@ -163,7 +163,15 @@ def add_table(doc, rows, fs=8.6, aligns=None, widths=None):
     borders(t)
     cell_margins(t)
     if widths is None:
-        colw = [TEXT_W_TWIPS // ncol] * ncol
+        # First column carries the row labels; give it more than an equal share
+        # so long labels do not wrap into three lines (equal split wraps them).
+        if ncol > 3:
+            w0 = 2.0
+            share = (ncol - 1) * 1.0 + w0
+            colw = [int(TEXT_W_TWIPS * (w0 if c == 0 else 1.0) / share)
+                    for c in range(ncol)]
+        else:
+            colw = [TEXT_W_TWIPS // ncol] * ncol
     else:
         tot = float(sum(widths))
         colw = [int(TEXT_W_TWIPS * w / tot) for w in widths]

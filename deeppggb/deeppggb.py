@@ -37,9 +37,14 @@ DEFAULTS = dict(
     workers=0,       # 0 = one worker per hardware thread
     mem=1024.0,      # memory budget, MB
     fade=20.0,       # head/tail fade, ms (20 saturates the boundary error)
+    edgefade=0.0,    # override for the head/tail fade only; 0 = use fade. A near-Nyquist
+                     # tone needs a long one (see dpggb.h): 19 kHz reads 450.8 dB at
+                     # 20 ms and 666.1 at 480 ms. It edits the signal's first/last
+                     # 480 ms, so it is off by default.
     context=800.0,   # block context, ms (seams + upsampling image band; must match C++)
     mptaps=50.0,     # min-phase FIR length = 4 x this, ms
-    taper="smooth5",  # smooth5 | smooth4 | smooth6 | smooth2 | cos | blackman | none
+    taper="smooth12",  # smooth12 (default) | smooth10 | smooth8 | smooth7 | smooth6 |
+                       # smooth5 | smooth4 | smooth2 | cos | blackman | none
     prec="double",   # double | long
     phase="linear",  # linear | min
     threads=0,       # 0 = FFTW default
@@ -132,6 +137,7 @@ def resample(y, src: int, dst: int, **opts) -> np.ndarray:
                "--ch", str(y.shape[1]), "--block", str(o["block"]),
                "--mem", str(o["mem"]), "--fade", str(o["fade"]),
                "--context", str(o["context"]), "--mptaps", str(o["mptaps"]),
+               "--edgefade", str(o["edgefade"]),
                "--taper", str(o["taper"]), "--prec", str(o["prec"]),
                "--phase", str(o["phase"]), "--threads", str(o["threads"]),
                "--workers", str(o.get("workers", 0))]
@@ -172,7 +178,7 @@ if __name__ == "__main__":
     ap.add_argument("--fade", type=float, default=20.0)
     ap.add_argument("--context", type=float, default=800.0)
     ap.add_argument("--mptaps", type=float, default=50.0)
-    ap.add_argument("--taper", default="smooth5")
+    ap.add_argument("--taper", default="smooth12")
     ap.add_argument("--prec", default="double")
     ap.add_argument("--phase", default="linear")
     ap.add_argument("--threads", type=int, default=0)

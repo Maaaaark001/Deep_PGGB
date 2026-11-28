@@ -279,6 +279,16 @@ DPGGB_PARAMS = [
           "**注意：用恒定值/零阶保持去延拓边界完全无效**——那只是让值连续、"
           "导数仍不连续，实测与不处理一样是 −109 dB。必须让曲线在两端平滑归零。",
           min=0.0, max=1000.0, step=1.0, unit="ms"),
+    Param("edgefade", "首尾渐变覆盖（高精度）", "float", 0.0,
+          "只覆盖文件首尾的渐变长度，0 = 用上面的值。**这是高频端的精度旋钮**："
+          "默认 20 ms 时 19 kHz 的零差只有 449.7 dB、21 kHz 只有 310.7 dB，因为渐变的"
+          "调制边带离输出奈奎斯特只剩 3 kHz、落回了带内。经验律 **T ≈ 650000/(0.5·fs − f)**"
+          "毫秒（上限 900）：15 kHz 要 92、18 kHz 160、19 kHz 213、21 kHz 619。实测 19 kHz"
+          "在 20/60/120/240/480 ms 下读 450.8/582.1/654.8/665.7/**666.1** dB，按律逐点取时"
+          "全频段回到 665 dB 以上。**代价是真的在改信号**：头尾各有几百毫秒被淡入淡出，"
+          "音乐上可听，所以默认关着。短文件会被 5% 上限压住（1 s 文件最多 50 ms）；"
+          "对 float64 路径无益（它早贴自己的地板）。块边缘渐变会自动跟随，不用另外调。",
+          min=0.0, max=1000.0, step=1.0, unit="ms", advanced=True),
     Param("context", "分块上下文", "float", 800.0,
           "每个分块两侧额外携带的上下文长度（ms），转换后丢弃、只保留中段。"
           "**它一口气决定三件事**：分块接缝的干净程度、奈奎斯特附近的抗混叠、"
@@ -312,18 +322,22 @@ DPGGB_PARAMS = [
           "越长过渡带越陡、奈奎斯特附近越准：实测 20 ms 时 21 kHz 只有 −77 dB，"
           "50 ms 提升到 −116 dB，再往上收益递减（100 ms 反而略差）。",
           min=10.0, max=500.0, step=10.0, unit="ms", advanced=True),
-    Param("taper", "渐变形状", "select", "smooth5",
-          "淡入淡出的窗形，**它直接决定升采样精度的天花板**。渐变是一个乘法器，"
-          "把信号频谱与窗自身的变换做卷积：离奈奎斯特 4 kHz 的音，其旁瓣正好落在 "
-          "22.05 kHz 上，而参考信号在那里是零 —— 这个旁瓣就是实测残差的全部来源。"
+    Param("taper", "渐变形状", "select", "smooth12",
+          "淡入淡出的窗形，**它是精度的旋钮，不是装饰**。渐变是一个乘法器，"
+          "把信号频谱与窗自身的变换做卷积：离奈奎斯特越近的音，其旁瓣越容易落回带内。"
           "窗形取 smootherstep 的通用阶：w(t)=t^(N+1)·Σ C(N+k,k)·C(2N+1,N−k)·(−t)^k。"
-          "实测泄漏（15 kHz 音 × 20 ms 窗，读 22.05 kHz）：C2 −271.8 dB、C4 −342.1、"
-          "**C5 −359.6**、C6 −341.2、cos −235.3；Kaiser 只有 −124（两端是余弦形状，"
-          "衰减不够快，已否决）。升采样 40 音零差随之从 C2 的 233 dB 变成 **C5 的 302.5 dB**。"
-          "C5 是拐点，C6 在 t→1 处大数相消更重反而略差。",
-          options=[("smooth5", "smooth5（C5 smootherstep，推荐）"),
-                   ("smooth4", "smooth4（C4）"),
+          "**实测（16 s、1 kHz、44.1→88.2、四精度、长度不变 20 ms）**：5 阶 440.2 dB、"
+          "6 阶 451.2、7 阶 516.5、8 阶 528.4、10 阶 601.7、**12 阶 665.3** dB —— 12 阶把读数"
+          "抬了 225 dB，机时不变。再往上没有收益：16 阶在长渐变下反而掉到 651.6（u→0.5 处"
+          "多项式大数相消）。float64 路径同受益（19 kHz 293.3 → 306.5 dB，贴住自己的地板）。"
+          "C5 是 2026-11-28 之前的默认，只适合对照。",
+          options=[("smooth12", "smooth12（C12 smootherstep，推荐）"),
+                   ("smooth10", "smooth10（C10）"),
+                   ("smooth8", "smooth8（C8）"),
+                   ("smooth7", "smooth7（C7）"),
                    ("smooth6", "smooth6（C6）"),
+                   ("smooth5", "smooth5（C5，2026-11-28 之前的默认）"),
+                   ("smooth4", "smooth4（C4）"),
                    ("smooth2", "smooth2（C2，旧默认）"),
                    ("cos", "cos（升余弦，C1）"),
                    ("blackman", "blackman（最低旁瓣）"),
@@ -775,7 +789,8 @@ def _resample_dpggb(y: np.ndarray, src: int, dst: int, o: dict) -> np.ndarray:
         "rolloff=%g" % float(o.get("rolloff", 200.0)),
         "rollorder=%d" % int(o.get("rollorder", 2)),
         "btaper=%g" % float(o.get("btaper", 20.0)),
-        "taper=%s" % str(o.get("taper", "smooth5")),
+        "edgefade=%g" % float(o.get("edgefade", 0.0)),
+        "taper=%s" % str(o.get("taper", "smooth12")),
         "prec=%s" % str(o.get("prec", "double")),
         "phase=%s" % str(o.get("phase", "linear")),
         "threads=%d" % int(o.get("threads", 0)),
@@ -816,7 +831,7 @@ def _resample_dpggb(y: np.ndarray, src: int, dst: int, o: dict) -> np.ndarray:
            "--rolloff", str(float(o.get("rolloff", 200.0))),
            "--rollorder", str(int(o.get("rollorder", 2))),
            "--btaper", str(float(o.get("btaper", 20.0))),
-           "--taper", str(o.get("taper", "smooth5")),
+           "--taper", str(o.get("taper", "smooth12")),
            "--prec", str(o.get("prec", "double")),
            "--phase", str(o.get("phase", "linear")),
            "--threads", str(int(o.get("threads", 0)))]

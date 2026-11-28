@@ -20,8 +20,27 @@ namespace dpggb {
 enum TaperShape { TAPER_NONE = 0, TAPER_COS = 1, TAPER_SMOOTH = 2, TAPER_BLACKMAN = 3,
                   TAPER_SMOOTH4 = 4, TAPER_SMOOTH5 = 5, TAPER_SMOOTH6 = 6,
                   TAPER_SMOOTH7 = 7, TAPER_SMOOTH8 = 8, TAPER_SMOOTH10 = 10,
-                  TAPER_SMOOTH12 = 12 };
+                  TAPER_SMOOTH12 = 12, TAPER_SMOOTH16 = 16, TAPER_SMOOTH20 = 20 };
 enum PhaseMode { PHASE_LINEAR = 0, PHASE_MIN = 1 };
+
+// Name -> order for the command line and the DLL option string. The fallback is
+// smooth12, matching Cfg, so an unknown name lands on the measured default
+// instead of the legacy order 5 (which costs 225 dB on the quad path).
+inline int taper_from_name(const std::string& s) {
+    if (s == "none") return TAPER_NONE;
+    if (s == "cos") return TAPER_COS;
+    if (s == "blackman") return TAPER_BLACKMAN;
+    if (s == "smooth2") return TAPER_SMOOTH;
+    if (s == "smooth4") return TAPER_SMOOTH4;
+    if (s == "smooth5") return TAPER_SMOOTH5;
+    if (s == "smooth6") return TAPER_SMOOTH6;
+    if (s == "smooth7") return TAPER_SMOOTH7;
+    if (s == "smooth8") return TAPER_SMOOTH8;
+    if (s == "smooth10") return TAPER_SMOOTH10;
+    if (s == "smooth16") return TAPER_SMOOTH16;
+    if (s == "smooth20") return TAPER_SMOOTH20;
+    return TAPER_SMOOTH12;   // "smooth", "smooth12", anything unrecognised
+}
 enum NoiseShape { NS_NONE = 0, NS_SHIBATA = 1 };
 
 struct Cfg {
@@ -36,6 +55,22 @@ struct Cfg {
     double block_sec = 16.0;   // 0 = whole file
     double mem_mb = 1024.0;    // budget used for automatic block sizing
     double taper_ms = 20.0;    // edge fade only: 20 ms saturates the boundary error
+    // Edge fade override, in ms; 0 keeps taper_ms. Only the file's first and
+    // last samples are faded, so this costs nothing elsewhere -- but the fade is
+    // a real edit of the signal (a 480 ms fade-in on music is audible), which is
+    // why it is opt-in rather than the default.
+    //
+    // Why it exists: the fade is a multiplier, so its spectrum is convolved with
+    // the signal's. A tone f close to Nyquist has little room below fs/2, and the
+    // fade's modulation sidelobes land right there, inside the output band. The
+    // fix is a fade long compared with 1/(fs/2 - f). Measured at 16 s,
+    // 44.1 -> 88.2, binary128 (null mode, whole-file block): a 19 kHz tone reads
+    // 450.8 dB at 20 ms, 582.1 at 60, 654.8 at 120, 665.7 at 240, 666.1 at 480;
+    // 21 kHz needs 480-620 ms (310.4 -> 666.2); 15 kHz is already there at 120
+    // (548.4 -> 665.6). One law fits the whole sweep, fade_ms ~= 650000 /
+    // (0.5*min(fs_in,fs_out) - f), capped at 900 ms; it holds 665-666.5 dB from
+    // 20 Hz to 21 kHz.
+    double edge_taper_ms = 0.0;
     // Block context has two jobs: give the block's spectral surgery room to
     // settle at the join, and let the near-Nyquist response decay. 400 ms was
     // enough for the seam alone, but the upsampling image band (42.6-44.1 kHz

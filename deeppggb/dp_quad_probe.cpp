@@ -68,9 +68,14 @@ struct Proj { qf d, a, b; };
 
 static Proj project(const qf* x, long long n, long long stride0, int fs, long long f) {
     const long long period = fs / gcd_ll(f, fs);
-    static std::map<long long, std::vector<qf>> ctab, stab;
-    auto& cs = ctab[period];
-    auto& sn = stab[period];
+    // Key the cache on (f, fs), NOT on the period: two different frequencies can
+    // share a period (19000 and 38000 both give 441 samples at 88.2 kHz), and a
+    // period-keyed table then projects one tone onto the other's basis, which
+    // reads the full tone level instead of the floor.
+    static std::map<std::pair<long long, int>, std::vector<qf>> ctab, stab;
+    const std::pair<long long, int> key{f, fs};
+    auto& cs = ctab[key];
+    auto& sn = stab[key];
     if ((long long) cs.size() != period) {
         cs.resize((size_t) period);
         sn.resize((size_t) period);
@@ -208,6 +213,9 @@ static double g_btaper = 20.0;
 static double g_context = 800.0;
 static double g_fade = 20.0;   // file-end fade (Cfg::taper_ms); DPQ_FADE overrides
 static int g_shape = dpggb::TAPER_SMOOTH12;  // matches Cfg's default
+// Stimulus level. A relative error keeps its dBc at any level, an absolute one
+// (rounding, a fixed offset) scales with it, so the level is its own axis.
+static double g_amp = 0.5;
 
 static Run run_engine(int prec, const std::vector<qf>& xq, const std::vector<double>& xd,
                       int fs_in, int fs_out, double block_sec, int workers) {
@@ -215,7 +223,7 @@ static Run run_engine(int prec, const std::vector<qf>& xq, const std::vector<dou
     cfg.in_rate = fs_in; cfg.out_rate = fs_out; cfg.precision = prec;
     cfg.block_sec = block_sec; cfg.workers = workers;
     cfg.block_taper_ms = g_btaper; cfg.taper_shape = g_shape;
-    cfg.context_ms = g_context; cfg.taper_ms = g_fade;
+    cfg.context_ms = g_context; cfg.edge_taper_ms = g_fade;
     const dpggb::Ratio r = dpggb::reduce_ratio(cfg.in_rate, cfg.out_rate);
     const auto t0 = std::chrono::steady_clock::now();
     if (prec == 2) {
@@ -239,7 +247,7 @@ static std::vector<qf> run_and_keep(int prec, const std::vector<qf>& xq, const s
     cfg.in_rate = fs_in; cfg.out_rate = fs_out; cfg.precision = prec;
     cfg.block_sec = block_sec; cfg.workers = workers;
     cfg.block_taper_ms = g_btaper; cfg.taper_shape = g_shape;
-    cfg.context_ms = g_context; cfg.taper_ms = g_fade;
+    cfg.context_ms = g_context; cfg.edge_taper_ms = g_fade;
     const dpggb::Ratio r = dpggb::reduce_ratio(cfg.in_rate, cfg.out_rate);
     const auto t0 = std::chrono::steady_clock::now();
     std::vector<qf> out;
@@ -416,13 +424,15 @@ int main(int argc, char** argv) {
         g_btaper = argc > 7 ? std::atof(argv[7]) : 20.0;
         g_context = argc > 9 ? std::atof(argv[9]) : 800.0;
         g_shape = argc > 8 ? std::atoi(argv[8]) : dpggb::TAPER_SMOOTH5;
-        if (g_shape < 0 || g_shape > 12) g_shape = dpggb::TAPER_SMOOTH5;
+        if (g_shape != 16 && g_shape != 20 && (g_shape < 0 || g_shape > 12))
+            g_shape = dpggb::TAPER_SMOOTH5;
         const int fs_in = argc > 10 ? std::atoi(argv[10]) : 44100;
         const int fs_out = argc > 11 ? std::atoi(argv[11]) : 88200;
         const double g_skip = argc > 12 ? std::atof(argv[12]) : 0.05;
         if (const char* e = std::getenv("DPQ_FADE")) g_fade = std::atof(e);
+        if (const char* e = std::getenv("DPQ_AMP")) g_amp = std::atof(e);
         const long long n = (long long) std::llround(secs * fs_in);
-        auto xq = gen_tone(f, fs_in, n, 0.5);
+        auto xq = gen_tone(f, fs_in, n, g_amp);
         std::vector<double> xd((size_t) n);
         for (long long i = 0; i < n; ++i) xd[(size_t) i] = (double) xq[(size_t) i];
         double wall = 0;
@@ -472,6 +482,155 @@ int main(int argc, char** argv) {
                    rows[rows.size() / 2], rows.front(), med_sfdr, med_enob, (int) rows.size(),
                    wall, (double) n / fs_in / wall);
         }
+        return 0;
+    }
+    // Two-tone intermodulation and a single-tone image/harmonic scan. Both use
+    // the same exact integer-phase projection as qnull, so a product that is
+    // not there reads the analyser floor, not a window skirt.
+    // 40-tone multitone: the worst per-tone residual is what a broadband
+    // signal actually sees, and it is not the single-tone number.
+    if (mode == "mt") {
+        const int prec = std::atoi(argv[2]);
+        const double secs = std::atof(argv[3]);
+        const int ntone = argc > 4 ? std::atoi(argv[4]) : 40;
+        const int step = argc > 5 ? std::atoi(argv[5]) : 500;   // spacing, so count and bandwidth are separate axes
+        const int start = argc > 6 ? std::atoi(argv[6]) : 200;  // band position, so count and band are separate too
+        const int fs_in = 44100, fs_out = 88200;
+        const long long n = (long long) std::llround(secs * fs_in);
+        std::vector<int> fr;
+        for (int k = 0; k < ntone; ++k) fr.push_back(start + k * step);
+        // Equal amplitudes and zero phase: the truth is known exactly, so the
+        // per-tone gain error is measurable, not just the residual.
+        const double tone_amp = 0.5 / ntone;
+        std::vector<qf> xq((size_t) n, 0);
+        for (int k = 0; k < ntone; ++k) {
+            const long long f = fr[(size_t) k];
+            const qf a = (qf) tone_amp;
+            for (long long i = 0; i < n; ++i) {
+                const long long m = (f * i) % fs_in;
+                xq[(size_t) i] += a * sinq(2 * kPiQ * (qf) m / (qf) fs_in);
+            }
+        }
+        std::vector<double> xd((size_t) n);
+        for (long long i = 0; i < n; ++i) xd[(size_t) i] = (double) xq[(size_t) i];
+        double wall = 0;
+        auto y = run_and_keep(prec, xq, xd, fs_in, fs_out, 16.0, 0, &wall);
+        const long long no = (long long) y.size();
+        const long long w = fs_out;
+        const long long st = ((long long) (0.25 * no) / w) * w;
+        const qf* seg = y.data() + st;
+        // Fit DC + every tone, subtract the whole model, then read what is left.
+        // Reading each tone's own level instead would just print the stimulus.
+        std::vector<Proj> fit((size_t) ntone);
+        for (int k = 0; k < ntone; ++k) fit[(size_t) k] = project(seg, w, st, fs_out, fr[(size_t) k]);
+        qf dc = 0;
+        for (long long i = 0; i < w; ++i) dc += seg[i];
+        dc /= (qf) w;
+        // Two rounds of re-projection on the residual, the same refinement
+        // qnull uses. Without them the first-order fit leaves a bias that sits
+        // 30 dB above the engine and would be read as engine error.
+        std::vector<qf> r((size_t) w);
+        auto rebuild = [&]() {
+            for (long long i = 0; i < w; ++i) {
+                qf m = dc;
+                for (int k = 0; k < ntone; ++k) {
+                    const long long f = fr[(size_t) k];
+                    const long long per = fs_out / gcd_ll(f, fs_out);
+                    const qf th = 2 * kPiQ * (qf) (((st + i) % per) * (f % fs_out)) / (qf) fs_out;
+                    m += fit[(size_t) k].a * cosq(th) + fit[(size_t) k].b * sinq(th);
+                }
+                r[(size_t) i] = seg[i] - m;
+            }
+        };
+        rebuild();
+        const int nref = std::getenv("DPQ_REFINE") ? std::atoi(std::getenv("DPQ_REFINE")) : 2;
+        for (int it = 0; it < nref; ++it) {
+            qf dd = 0;
+            for (long long i = 0; i < w; ++i) dd += r[(size_t) i];
+            dc += dd / (qf) w;
+            for (int k = 0; k < ntone; ++k) {
+                Proj q = project(r.data(), w, st, fs_out, fr[(size_t) k]);
+                fit[(size_t) k].a += q.a;
+                fit[(size_t) k].b += q.b;
+            }
+            rebuild();
+        }
+        qf pres = 0, psig = 0;
+        for (long long i = 0; i < w; ++i) {
+            pres += r[(size_t) i] * r[(size_t) i];
+            psig += seg[i] * seg[i];
+        }
+        double worst_gain = -1e9;
+        for (int k = 0; k < ntone; ++k) {
+            const double a = (double) sqrtq(fit[(size_t) k].a * fit[(size_t) k].a +
+                                           fit[(size_t) k].b * fit[(size_t) k].b);
+            const double e = 20 * std::log10(std::max(a, 1e-300) / tone_amp);
+            if (e > worst_gain) worst_gain = e;
+        }
+        const double null_db = (double) (10 * log10q(psig / pres));
+        printf("{\"mode\":\"mt\",\"prec\":%d,\"ntone\":%d,\"null\":%.2f,\"worst_gain_db\":%.2f,"
+               "\"wall\":%.3f", prec, ntone, null_db, worst_gain, wall);
+        if (std::getenv("DPQ_DEBUG")) {
+            printf(",\"psig\":%.3e,\"pres\":%.3e,\"dc\":%.3e,\"amps\":[", (double) psig, (double) pres, (double) dc);
+            for (int k = 0; k < ntone; ++k)
+                printf("%s%.6f", k ? "," : "",
+                       (double) sqrtq(fit[(size_t) k].a * fit[(size_t) k].a +
+                                      fit[(size_t) k].b * fit[(size_t) k].b));
+            printf("]");
+        }
+        printf("}\n");
+        return 0;
+    }
+    if (mode == "imd" || mode == "image") {
+        const int prec = std::atoi(argv[2]);
+        const double secs = std::atof(argv[3]);
+        std::vector<long long> tf;
+        if (mode == "imd") {
+            tf.push_back((long long) std::llround(std::atof(argv[4])));
+            tf.push_back((long long) std::llround(std::atof(argv[5])));
+        } else {
+            tf.push_back((long long) std::llround(std::atof(argv[4])));
+        }
+        const int fs_in = 44100, fs_out = 88200;
+        const long long n = (long long) std::llround(secs * fs_in);
+        const double per_amp = tf.size() == 1 ? 0.5 : 0.25;
+        std::vector<qf> xq((size_t) n, 0);
+        for (size_t k = 0; k < tf.size(); ++k) {
+            const long long f = tf[k];
+            const qf a = (qf) per_amp;
+            for (long long i = 0; i < n; ++i) {
+                const long long m = (f * i) % fs_in;
+                xq[(size_t) i] += a * sinq(2 * kPiQ * (qf) m / (qf) fs_in);
+            }
+        }
+        std::vector<double> xd((size_t) n);
+        for (long long i = 0; i < n; ++i) xd[(size_t) i] = (double) xq[(size_t) i];
+        double wall = 0;
+        auto y = run_and_keep(prec, xq, xd, fs_in, fs_out, 16.0, 0, &wall);
+        const long long no = (long long) y.size();
+        const long long w = fs_out;                       // 1 s holds whole cycles of any integer f
+        const long long st = ((long long) (0.25 * no) / w) * w;
+        const qf* seg = y.data() + st;
+        auto lvl = [&](long long p) {
+            Proj q = project(seg, w, st, fs_out, p);
+            return (double) sqrtq(q.a * q.a + q.b * q.b);
+        };
+        std::vector<long long> prods;
+        if (mode == "imd") {
+            const long long f1 = tf[0], f2 = tf[1];
+            prods = {f1, f2, 2 * f1, 3 * f1, 2 * f2, 3 * f2, f2 - f1, f1 + f2,
+                     2 * f1 - f2, 2 * f2 - f1, 2 * f1 + f2, f1 + 2 * f2};
+        } else {
+            const long long f = tf[0];
+            prods = {f, 2 * f, 3 * f, fs_in - f, fs_in + f};
+        }
+        printf("{\"mode\":\"%s\",\"prec\":%d,\"wall\":%.3f,\"rows\":[", mode.c_str(), prec, wall);
+        for (size_t i = 0; i < prods.size(); ++i) {
+            const double a = lvl(prods[i]);
+            printf("%s{\"f\":%lld,\"db\":%.2f}", i ? "," : "", prods[i],
+                   20 * std::log10(std::max(a, 1e-300)));
+        }
+        printf("]}\n");
         return 0;
     }
     if (mode == "fft") {

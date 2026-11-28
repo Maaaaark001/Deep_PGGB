@@ -52,6 +52,14 @@
    140.662）。任何「残差 = 数据 − 模型」的证书，模型漏一项就等于给被测对象减分。
 11. **墙钟不是正比于精度**：`µs/样本/遍 = 6.34 + 0.0131·bits`（f128 输入）。94 bit 时 69% 的时间
     花在与精度无关的解码与三角函数上。
+12. **默认参数下 666 dB 只覆盖 20 Hz–4 kHz，但高频那一段是买得回来的**。单音频率扫描
+    （`reports/2026-11-28-binary128-distortion-profile.md`）：20 Hz–4 kHz 是 665–666 dB 的平台，
+    5 kHz 起下滑，19 kHz 453.6、21 kHz 325.8，ENOB 从 111 bit 掉到 54.7。下滑来自**文件首尾那道
+    20 ms 渐变**（乘法器，边带落回带内），按 `T ≈ 650000/(0.5·fs − f)` 毫秒加长首尾渐变即可复原：
+    19 kHz 在 480 ms 下读 666.11、21 kHz 在 619 ms 下读 666.39，全频段 19 个点落在 664.97–666.49 dB。
+    代价是真的在改信号（头尾各几百毫秒淡入淡出），所以 `Cfg::edge_taper_ms` 默认 0。
+    电平、倍率、块长都不是变量（极差 0.5 / 2.1 dB）；多音的残差功率按单音地板相加，
+    密排时误差 6 dB 以内，稀疏时偏 26–28 dB。
 
 ## 怎么用（命令行）
 
@@ -102,13 +110,17 @@ hpm/
 │  ├─ run_minsolve.py        求解精度下限（Gram 奇异在哪）
 │  ├─ run_wallcal.py         墙钟标定（仿射模型的两个常数）
 │  ├─ run_guard.py / run_phasebasis.py / run_lipschitz.py / run_gaplaw.py / run_budget.py
+│  ├─ run_guard2.py / run_guard_mid.py / run_guard_decomp.py / run_stimfloor.py   保护位平台
+│  ├─ run_ladder2.py         格式地板阶梯（1200 bit 合成激励）→ results_ladder2.json
 │  ├─ fig_roadmap.py         出图 reports/figs/roadmap_1_5.png
-│  └─ fig_budget.py          出图 reports/figs/budget_1_5.png
+│  ├─ fig_budget.py          出图 reports/figs/budget_1_5.png
+│  └─ fig_quad_profile.py    出图 reports/figs/fig_quad_profile.png（binary128 性能画像）
 └─ reports/
    ├─ 2026-11-25-arbitrary-precision-audio-measurement.md   综述 + 理论 + 实验 + 创新点
    ├─ 2026-11-26-certified-measurement-roadmap.md           路线图 1–5 交付报告
-   ├─ 2026-11-26-certified-measurement-tooling.md           工具链与精度律（本轮）
-   ├─ figs/roadmap_1_5.png, figs/budget_1_5.png
+   ├─ 2026-11-26-certified-measurement-tooling.md           工具链与精度律
+   ├─ 2026-11-28-binary128-distortion-profile.md            binary128 失真/误差性能画像（含频率响应）
+   ├─ figs/roadmap_1_5.png, figs/budget_1_5.png, figs/fig_quad_profile.png
    └─ float128/                                             分支 C 的第一份报告
       ├─ Deep_PGGB_float128_report.md/.docx/.pdf
       ├─ float128_report.univer
@@ -118,7 +130,7 @@ hpm/
 
 ## 论文
 
-当前稿是 `work/paper_cert/certified_null_paper.docx` / `.pdf`（23 页、6 图、13 表、14 式、16 篇文献），
+当前稿是 `work/paper_cert/certified_null_paper.docx` / `.pdf`（25 页、6 图、14 表、15 式、16 篇文献），
 题名《可证零差：任意精度音频测量的地板归属与精度预算》。源是 `work/paper_cert/paper_a.md`（标题与 §1–4）
 和 `paper_b.md`（§5–11 与附录），图由 `hpm/experiments/fig_paper2.py` 生成，构建链是
 `build_paper.py`（python-docx 直出，`add_picture` 内联图）→ `_wordcheck.py`（Word COM 开档验证 + 导 PDF）
@@ -130,5 +142,7 @@ DrawingML 缺命名空间声明，Word 打不开，不要复用。
 1. 投稿前还差三件：跨实现的残差散布（目前每个读数来自一次 realization）、把 3 dB 的三角不等式
    缺口换成真正的上界、以及把保护位平台的 −30.5 dB 在 360/480 bit 上单独拆一遍（现在只有
    120/240 两点）。
-2. 引擎那 249 dB 的缺口尚未定位到内核：需要算术、算法窗、块边界三部分的对照实验。
+2. 引擎剩下的 24 dB 已经能靠**加长首尾渐变**买回来（19 kHz 480 ms → 666.11 dB），但那是用信号
+   头尾换的，默认关着。真正还没做的两条：把 5% 的 `n/20` 上限做成可选（短文件现在给不到长渐变），
+   以及不做乘法窗的重叠相加（OLA），后者理论上能在不牺牲头尾的前提下拿到同样的抑制。
 3. 真实音乐与非平稳内容的块间误差不能从合成单音外推，缺一段音乐口径的对照。
